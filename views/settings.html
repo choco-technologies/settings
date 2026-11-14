@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings</title>
+<link rel="stylesheet" href="fonts/inter.css">
+<style>
+/*
+ * Settings for the part of the screen that an application is given on a phone with an e-paper (240 x 275, in the rent of the launcher):
+ * black and white only, lines of 2 px, text of 12 px at least and never thinner than the weight 600 (the display has no gray: thin strokes
+ * are lost - white on black: 700). The font is Inter, as the phone's: the converter makes it in the sizes the page draws, and the firmware has
+ * no fonts of its own for a view (/eviews has only what the views bring). What changes while the view runs is an element shown by its opacity (.hidden) - the converter handles
+ * that, not a change of how an element looks - and a button that is pressed is inverted (:active).
+ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 240px; height: 275px; background: #fff; color: #000; font-family: 'Inter'; font-weight: 600; overflow: hidden; }
+body { font-size: 14px; line-height: 1.2; }
+#screen { position: relative; width: 240px; height: 275px; background: #fff; overflow: hidden; }
+.abs { position: absolute; }
+.page { position: absolute; left: 0; top: 0; width: 240px; height: 275px; background: #fff; opacity: 0; pointer-events: none; }
+.page.active { opacity: 1; pointer-events: auto; z-index: 5; }
+.hidden { opacity: 0; pointer-events: none; }
+.b { font-weight: 700; }
+.nowrap { white-space: nowrap; overflow: hidden; }
+.rule { position: absolute; left: 0; width: 240px; height: 2px; background: #000; }
+.hair { position: absolute; left: 10px; width: 220px; height: 1px; background: #000; }
+
+/* the header of a page: a way back and the name */
+.hdr { position: absolute; left: 0; top: 0; width: 240px; height: 32px; }
+.hdr .back { position: absolute; left: 0; top: 0; width: 44px; height: 30px; font-size: 22px; font-weight: 700; text-align: center; line-height: 28px; }
+.hdr .name { position: absolute; left: 44px; top: 5px; width: 152px; text-align: center; font-size: 18px; font-weight: 700; }
+.hdr .rule { top: 30px; }
+
+/* buttons: a frame, inverted while pressed */
+.btn { position: absolute; border: 2px solid #000; border-radius: 8px; text-align: center; font-size: 16px; font-weight: 700; background: #fff; }
+.btn.solid { background: #000; color: #fff; }
+.btn:active { background: #000; color: #fff; }
+.btn.solid:active { background: #fff; color: #000; }
+.row { position: absolute; left: 0; width: 240px; background: #fff; }
+.row:active { background: #000; color: #fff; }
+
+/* the list of settings */
+#open-wifi { top: 36px; height: 44px; }
+#open-wifi .lbl { position: absolute; left: 12px; top: 11px; font-size: 18px; font-weight: 700; }
+#open-wifi .val { position: absolute; right: 30px; top: 14px; width: 112px; text-align: right; font-size: 14px; }
+#open-wifi .go { position: absolute; right: 10px; top: 8px; font-size: 22px; font-weight: 700; }
+
+/* Wi-Fi */
+#wifi .sw { position: absolute; left: 0; top: 36px; width: 240px; height: 36px; }
+#wifi .sw .lbl { position: absolute; left: 12px; top: 8px; font-size: 18px; font-weight: 700; }
+#sw-box { position: absolute; right: 12px; top: 5px; width: 64px; height: 26px; border: 2px solid #000; border-radius: 13px; }
+#sw-on, #sw-off { position: absolute; left: 0; top: 0; width: 60px; height: 22px; border-radius: 11px; text-align: center; font-size: 14px; font-weight: 700; line-height: 20px; }
+#sw-on { background: #000; color: #fff; }
+#sw-off { background: #fff; color: #000; }
+#wifi-status { position: absolute; left: 12px; top: 74px; width: 204px; font-size: 12px; }
+.net { height: 30px; }
+.net .ssid { position: absolute; left: 12px; top: 0; width: 150px; font-size: 14px; font-weight: 700; }
+.net .sub { position: absolute; left: 12px; top: 16px; width: 150px; font-size: 12px; }
+.net .bar { position: absolute; bottom: 6px; width: 4px; background: #000; }
+.net .b1 { right: 36px; height: 6px; } .net .b2 { right: 29px; height: 10px; } .net .b3 { right: 22px; height: 14px; } .net .b4 { right: 15px; height: 18px; }
+.net .gone { position: absolute; bottom: 6px; right: 15px; width: 25px; height: 2px; background: #000; }
+#scan { left: 70px; top: 244px; width: 100px; height: 28px; line-height: 24px; font-size: 14px; }
+
+/* the password */
+#pw-ssid { position: absolute; left: 12px; top: 38px; width: 204px; font-size: 18px; font-weight: 700; }
+#pw-label { position: absolute; left: 12px; top: 64px; font-size: 12px; }
+#pw-field { position: absolute; left: 10px; top: 80px; width: 220px; height: 32px; border: 2px solid #000; border-radius: 6px; }
+#pw-text { position: absolute; left: 6px; top: 5px; width: 190px; font-size: 16px; }
+#pw-hint { position: absolute; left: 12px; top: 118px; width: 204px; font-size: 12px; }
+#pw-status { position: absolute; left: 12px; top: 136px; width: 204px; font-size: 13px; font-weight: 700; }
+#pw-show { left: 10px; top: 168px; width: 100px; height: 34px; line-height: 30px; }
+#pw-connect { left: 130px; top: 168px; width: 100px; height: 34px; line-height: 30px; }
+
+/* a network */
+#nt-ssid { position: absolute; left: 12px; top: 42px; width: 204px; font-size: 18px; font-weight: 700; }
+#nt-state { position: absolute; left: 12px; top: 68px; width: 204px; font-size: 13px; }
+#nt-disconnect { left: 12px; top: 104px; width: 216px; height: 36px; line-height: 32px; }
+#nt-forget { left: 12px; top: 150px; width: 216px; height: 36px; line-height: 32px; }
+</style>
+</head>
+<body>
+<div id="screen">
+
+<div class="page active" id="main">
+  <div class="hdr"><div class="name" style="left:0;width:240px">Settings</div><div class="rule"></div></div>
+  <div class="row" id="open-wifi">
+    <div class="lbl">Wi-Fi</div><div class="val nowrap" id="main-wifi">Not connected</div><div class="go">&gt;</div>
+    <div class="hair" style="left:0;width:240px;top:43px"></div>
+  </div>
+</div>
+
+<div class="page" id="wifi">
+  <div class="hdr"><div class="back" id="wifi-back">&lt;</div><div class="name">Wi-Fi</div><div class="rule"></div></div>
+  <div class="sw">
+    <div class="lbl">Wi-Fi</div>
+    <div id="sw-box"><div id="sw-off">OFF</div><div id="sw-on" class="hidden">ON</div></div>
+  </div>
+  <div id="wifi-status" class="nowrap">Not connected</div>
+  <div class="row net" id="r0" style="top:90px"><div class="ssid nowrap" id="r0-ssid">Home network</div><div class="sub nowrap" id="r0-sub">WPA2, saved</div><div class="bar b1" id="r0-b1"></div><div class="bar b2" id="r0-b2"></div><div class="bar b3" id="r0-b3"></div><div class="bar b4" id="r0-b4"></div></div>
+  <div class="row net" id="r1" style="top:120px"><div class="ssid nowrap" id="r1-ssid">Home network</div><div class="sub nowrap" id="r1-sub">WPA2, saved</div><div class="bar b1" id="r1-b1"></div><div class="bar b2" id="r1-b2"></div><div class="bar b3" id="r1-b3"></div><div class="bar b4" id="r1-b4"></div></div>
+  <div class="row net" id="r2" style="top:150px"><div class="ssid nowrap" id="r2-ssid">Home network</div><div class="sub nowrap" id="r2-sub">WPA2, saved</div><div class="bar b1" id="r2-b1"></div><div class="bar b2" id="r2-b2"></div><div class="bar b3" id="r2-b3"></div><div class="bar b4" id="r2-b4"></div></div>
+  <div class="row net" id="r3" style="top:180px"><div class="ssid nowrap" id="r3-ssid">Home network</div><div class="sub nowrap" id="r3-sub">WPA2, saved</div><div class="bar b1" id="r3-b1"></div><div class="bar b2" id="r3-b2"></div><div class="bar b3" id="r3-b3"></div><div class="bar b4" id="r3-b4"></div></div>
+  <div class="row net" id="r4" style="top:210px"><div class="ssid nowrap" id="r4-ssid">Home network</div><div class="sub nowrap" id="r4-sub">WPA2, saved</div><div class="bar b1" id="r4-b1"></div><div class="bar b2" id="r4-b2"></div><div class="bar b3" id="r4-b3"></div><div class="bar b4" id="r4-b4"></div></div>
+  <div class="btn" id="scan">Scan</div>
+</div>
+
+<div class="page" id="password">
+  <div class="hdr"><div class="back" id="pw-back">&lt;</div><div class="name">Password</div><div class="rule"></div></div>
+  <div id="pw-ssid" class="nowrap">Home network</div>
+  <div id="pw-label">Password</div>
+  <div id="pw-field"><div id="pw-text" class="nowrap">***|</div></div>
+  <div id="pw-hint" class="nowrap">Type the password, Enter connects</div>
+  <div id="pw-status" class="nowrap">Could not connect</div>
+  <div class="btn" id="pw-show"><span id="pw-show-t">Show</span><span id="pw-hide-t" class="hidden abs" style="left:0;top:0;width:96px">Hide</span></div>
+  <div class="btn solid" id="pw-connect">Connect</div>
+</div>
+
+<div class="page" id="network">
+  <div class="hdr"><div class="back" id="nt-back">&lt;</div><div class="name">Network</div><div class="rule"></div></div>
+  <div id="nt-ssid" class="nowrap">Home network</div>
+  <div id="nt-state" class="nowrap">Connected</div>
+  <div class="btn" id="nt-disconnect">Disconnect</div>
+  <div class="btn" id="nt-forget">Forget</div>
+</div>
+
+</div>
+<script src="dmod.js"></script>
+<script>
+/*
+ * The behaviour of the page (compiled by todmvs: nothing of it is interpreted on the device).
+ *
+ * The page knows nothing of the radio: what it shows comes from properties that the application sets (dmod.prop), what the user does
+ * goes to the application as events (dmod.emit) - src/settings_model.c is on the other side. The names are the contract (docs/contract.md).
+ */
+const pages = [document.getElementById('main'), document.getElementById('wifi'), document.getElementById('password'),
+               document.getElementById('network')];
+function shown(el, on) { if (on) el.classList.remove('hidden'); else el.classList.add('hidden'); }
+
+/* Every character the application may send - a name of a network, a password: the font of the view has only the characters of the page and
+ * of its scripts */
+const CHARS = ' !"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_abcdefghijklmnopqrstuvwxyz{|}~·…ĄĆĘŁŃÓŚŹŻąćęłńóśźż';
+
+/* what the page does not show (yet) but the application sets: a scan is running, the row is the network that is connected, a network has a
+ * password, a connection is being made - declared so that the whole contract is here */
+dmod.prop('wifi.busy', 0);
+dmod.prop('pw.busy', 0);
+dmod.prop('nt.connected', 0);
+for (let i = 0; i < 5; i++) { dmod.prop('r' + i + '.lock', 0); dmod.prop('r' + i + '.cur', 0); }
+
+/* the page: the application says which one is shown */
+dmod.prop('page', 0);
+dmod.onchange('page', () => {
+    const k = dmod.get('page');
+    for (let i = 0; i < pages.length; i++) {
+        if (i === k) pages[i].classList.add('active'); else pages[i].classList.remove('active');
+    }
+});
+
+/* the list of settings */
+dmod.prop('wifi.state', 'Not connected');
+const mainWifi = document.getElementById('main-wifi');
+dmod.onchange('wifi.state', () => mainWifi.innerText = dmod.get('wifi.state'));
+document.getElementById('open-wifi').addEventListener('click', () => dmod.emit('open.wifi'));
+
+/* Wi-Fi: the switch, the status, the networks */
+dmod.prop('wifi.on', 1);
+dmod.prop('wifi.status', 'Not connected');
+const swOn = document.getElementById('sw-on'), swOff = document.getElementById('sw-off');
+dmod.onchange('wifi.on', () => { shown(swOn, dmod.get('wifi.on')); shown(swOff, !dmod.get('wifi.on')); });
+const wifiStatus = document.getElementById('wifi-status');
+dmod.onchange('wifi.status', () => wifiStatus.innerText = dmod.get('wifi.status'));
+document.getElementById('sw-box').addEventListener('click', () => dmod.emit('wifi.toggle'));
+document.getElementById('scan').addEventListener('click', () => dmod.emit('scan'));
+document.getElementById('wifi-back').addEventListener('click', () => dmod.emit('back'));
+
+for (let i = 0; i < 5; i++) {
+    dmod.prop('r' + i + '.on', 0);
+    dmod.prop('r' + i + '.ssid', 'Home network');
+    dmod.prop('r' + i + '.sub', 'WPA2, saved');
+    dmod.prop('r' + i + '.bars', 0);
+    const row = document.getElementById('r' + i), ssid = document.getElementById('r' + i + '-ssid'), sub = document.getElementById('r' + i + '-sub');
+    const b1 = document.getElementById('r' + i + '-b1'), b2 = document.getElementById('r' + i + '-b2'),
+          b3 = document.getElementById('r' + i + '-b3'), b4 = document.getElementById('r' + i + '-b4');
+    dmod.onchange('r' + i + '.ssid', () => ssid.innerText = dmod.get('r' + i + '.ssid'));
+    dmod.onchange('r' + i + '.sub', () => sub.innerText = dmod.get('r' + i + '.sub'));
+    dmod.onchange('r' + i + '.bars', () => {
+        const n = dmod.get('r' + i + '.bars');
+        shown(b1, n >= 1); shown(b2, n >= 2); shown(b3, n >= 3); shown(b4, n >= 4);
+    });
+    dmod.onchange('r' + i + '.on', () => shown(row, dmod.get('r' + i + '.on')));
+    row.addEventListener('click', () => dmod.emit('row', i));
+}
+
+/* the password */
+dmod.prop('pw.ssid', 'Home network');
+dmod.prop('pw.text', '|');
+dmod.prop('pw.hint', 'Type the password, Enter connects');
+dmod.prop('pw.status', 'Could not connect');
+dmod.prop('pw.show', 0);
+const pwSsid = document.getElementById('pw-ssid'), pwText = document.getElementById('pw-text'), pwHint = document.getElementById('pw-hint'),
+      pwStatus = document.getElementById('pw-status');
+dmod.onchange('pw.ssid', () => pwSsid.innerText = dmod.get('pw.ssid'));
+dmod.onchange('pw.text', () => pwText.innerText = dmod.get('pw.text'));
+dmod.onchange('pw.hint', () => pwHint.innerText = dmod.get('pw.hint'));
+dmod.onchange('pw.status', () => pwStatus.innerText = dmod.get('pw.status'));
+const pwShowT = document.getElementById('pw-show-t'), pwHideT = document.getElementById('pw-hide-t');
+dmod.onchange('pw.show', () => { shown(pwShowT, !dmod.get('pw.show')); shown(pwHideT, dmod.get('pw.show')); });
+document.getElementById('pw-show').addEventListener('click', () => dmod.emit('pw.show'));
+document.getElementById('pw-connect').addEventListener('click', () => dmod.emit('pw.connect'));
+document.getElementById('pw-back').addEventListener('click', () => dmod.emit('back'));
+
+/* a network that is connected */
+dmod.prop('nt.ssid', 'Home network');
+dmod.prop('nt.state', 'Connected');
+dmod.prop('nt.saved', 0);
+const ntSsid = document.getElementById('nt-ssid'), ntState = document.getElementById('nt-state'), ntForget = document.getElementById('nt-forget');
+dmod.onchange('nt.ssid', () => ntSsid.innerText = dmod.get('nt.ssid'));
+dmod.onchange('nt.state', () => ntState.innerText = dmod.get('nt.state'));
+dmod.onchange('nt.saved', () => shown(ntForget, dmod.get('nt.saved')));
+document.getElementById('nt-disconnect').addEventListener('click', () => dmod.emit('nt.disconnect'));
+ntForget.addEventListener('click', () => dmod.emit('nt.forget'));
+document.getElementById('nt-back').addEventListener('click', () => dmod.emit('back'));
+</script>
+</body>
+</html>
