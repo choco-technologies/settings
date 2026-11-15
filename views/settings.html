@@ -111,7 +111,7 @@ body { font-size: 14px; line-height: 1.2; }
   <div id="pw-field"><div id="pw-text" class="nowrap">***|</div></div>
   <div id="pw-hint" class="nowrap">Type the password, Enter connects</div>
   <div id="pw-status" class="nowrap">Could not connect</div>
-  <div class="btn" id="pw-show"><span id="pw-show-t">Show</span><span id="pw-hide-t" class="hidden abs" style="left:0;top:0;width:96px">Hide</span></div>
+  <div class="btn" id="pw-show"><span id="pw-show-t">Show</span></div>
   <div class="btn solid" id="pw-connect">Connect</div>
 </div>
 
@@ -203,8 +203,9 @@ dmod.onchange('pw.ssid', () => pwSsid.innerText = dmod.get('pw.ssid'));
 dmod.onchange('pw.text', () => pwText.innerText = dmod.get('pw.text'));
 dmod.onchange('pw.hint', () => pwHint.innerText = dmod.get('pw.hint'));
 dmod.onchange('pw.status', () => pwStatus.innerText = dmod.get('pw.status'));
-const pwShowT = document.getElementById('pw-show-t'), pwHideT = document.getElementById('pw-hide-t');
-dmod.onchange('pw.show', () => { shown(pwShowT, !dmod.get('pw.show')); shown(pwHideT, dmod.get('pw.show')); });
+const pwShowT = document.getElementById('pw-show-t');
+/* (the label is one text that changes: two texts, one of them hidden, are drawn both) */
+dmod.onchange('pw.show', () => pwShowT.innerText = dmod.get('pw.show') ? 'Hide' : 'Show');
 document.getElementById('pw-show').addEventListener('click', () => dmod.emit('pw.show'));
 document.getElementById('pw-connect').addEventListener('click', () => dmod.emit('pw.connect'));
 document.getElementById('pw-back').addEventListener('click', () => dmod.emit('back'));

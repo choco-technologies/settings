@@ -17,6 +17,9 @@ version=./${module}_version.txt => ${destination}/${module}_version.txt [origin=
 # === The views (converted from views/ by dmod at build time) and the icon of the launcher ===
 views=./views => ${views_dir} [origin=${views_dir}]
 icon=./icon.dmvi => ${icons_dir}/${module}.dmvi [origin=${icons_dir}/${module}.dmvi]
+icon=./icon-small.dmvi => ${icons_dir}/${module}.dmvi [variant=small] [origin=${icons_dir}/${module}.dmvi]
+icon=./icon-epaper-240x320.dmvi => ${icons_dir}/${module}.dmvi [screen=epaper-240x320] [origin=${icons_dir}/epaper-240x320/${module}.dmvi]
+icon=./icon-small-epaper-240x320.dmvi => ${icons_dir}/${module}.dmvi [variant=small] [screen=epaper-240x320] [origin=${icons_dir}/epaper-240x320/${module}.dmvi]
 
 license=./LICENSE-Inter.txt => ${destination}/${module}/LICENSE-Inter.txt [origin=${repo_dir}/views/fonts/LICENSE-Inter.txt]
 
