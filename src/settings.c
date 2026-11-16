@@ -3,6 +3,7 @@
 #include "libdmview.h"
 #include "settings_model.h"
 #include "wifi_node.h"
+#include "mesh_node.h"
 #include <errno.h>
 #include <string.h>
 
@@ -96,7 +97,8 @@ int main(int argc, char* argv[])
     }
     settings_wifi_ops_t ops = wifi_node_ops(wifi);
     settings_sink_t sink = { &claim, sink_int, sink_text };
-    settings_init(settings, &ops, &sink);
+    settings_mesh_ops_t mesh_ops = mesh_node_ops();
+    settings_init(settings, &ops, &mesh_ops, &sink);
 
     libdmview_event_t ev;
     while ((ret = libdmview_wait_event(claim, &ev, (int32_t)EVENT_WAIT_MS)) != -ENOENT)

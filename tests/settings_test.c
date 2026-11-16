@@ -29,6 +29,43 @@ typedef struct
 
 static radio_t g_radio;
 
+/* ---- A mesh that is made up ---- */
+
+typedef struct
+{
+    bool    available, enabled, listening;
+    uint8_t preset;
+    int8_t  power;
+    int     result;                     /* what a change answers */
+    int     changes;
+} mesh_t;
+
+static mesh_t g_mesh;
+
+static int m_get(void* c, settings_mesh_state_t* st)
+{
+    (void)c;
+    memset(st, 0, sizeof(*st));
+    st->available = g_mesh.available;
+    st->enabled = g_mesh.enabled;
+    st->listening = g_mesh.listening;
+    st->preset = g_mesh.preset;
+    st->preset_count = 3;
+    strcpy(st->preset_name, g_mesh.preset == 0 ? "EU/UK narrow" : g_mesh.preset == 1 ? "EU/UK long range" : "USA/Canada");
+    st->frequency_hz = 869618000u;
+    st->bandwidth_hz = 62500u;
+    st->spreading_factor = 8;
+    st->coding_rate = 8;
+    st->tx_power_dbm = g_mesh.power;
+    st->packets = 12;
+    st->nodes = 3;
+    return 0;
+}
+static int m_enable(void* c, bool on) { (void)c; g_mesh.changes++; if (g_mesh.result == 0) g_mesh.enabled = on; return g_mesh.result; }
+static int m_preset(void* c, uint8_t p) { (void)c; g_mesh.changes++; if (g_mesh.result == 0) g_mesh.preset = p; return g_mesh.result; }
+static int m_power(void* c, int8_t d) { (void)c; g_mesh.changes++; if (g_mesh.result == 0) g_mesh.power = d; return g_mesh.result; }
+
+
 static int r_status(void* c, dmdrvi_wifi_status_t* st)
 {
     (void)c;
@@ -173,6 +210,11 @@ static void start(void)
     memset(&g_radio, 0, sizeof(g_radio));
     memset(g_told, 0, sizeof(g_told));
     g_told_count = 0;
+    memset(&g_mesh, 0, sizeof(g_mesh));
+    g_mesh.available = true;
+    g_mesh.enabled = true;
+    g_mesh.listening = true;
+    g_mesh.power = 14;
     g_radio.state = DMDRVI_WIFI_STATE_IDLE;
     strcpy(g_radio.right_password, "secret123");
     ap(0, "Cafe", -70, DMDRVI_WIFI_AUTH_OPEN);
@@ -182,8 +224,9 @@ static void start(void)
     ap(4, "Home", -48, DMDRVI_WIFI_AUTH_WPA2);
     g_radio.ap_count = 5;
     settings_wifi_ops_t ops = { NULL, r_status, r_scan, r_connect, r_disconnect, r_enable, r_save, r_forget, r_is_saved, r_load };
+    settings_mesh_ops_t mesh_ops = { NULL, m_get, m_enable, m_preset, m_power };     /* (on the stack: a module has no relocated data) */
     settings_sink_t sink = { NULL, s_int, s_text };
-    settings_init(&g_s, &ops, &sink);
+    settings_init(&g_s, &ops, &mesh_ops, &sink);
 }
 
 static void type(const char* text)
@@ -449,4 +492,63 @@ DMOD_TEST_STEP(only_what_changed_is_published)
     settings_tick(&g_s, 100 + SETTINGS_STATUS_MS);
     DMOD_TEST_EXPECT_TRUE(text_is("wifi.state", "Away"));
     DMOD_TEST_EXPECT_TRUE(g_told_count - before <= 3U);
+}
+
+DMOD_TEST_STEP(mesh_page_shows_the_mesh_and_changes_it)
+{
+    start();
+    DMOD_TEST_EXPECT_TRUE(text_is("mesh.state", "On"));
+    DMOD_TEST_EXPECT_TRUE(settings_event(&g_s, "open.mesh", 0, 0));
+    DMOD_TEST_EXPECT_TRUE(number_is("page", SETTINGS_PAGE_MESH));
+    DMOD_TEST_EXPECT_TRUE(number_is("mesh.on", 1));
+    DMOD_TEST_EXPECT_TRUE(text_is("mesh.preset", "EU/UK narrow"));
+    DMOD_TEST_EXPECT_TRUE(text_is("mesh.numbers", "869.618 MHz, 62.5 kHz, SF8, 4/8"));
+    DMOD_TEST_EXPECT_TRUE(text_is("mesh.power", "14 dBm"));
+    DMOD_TEST_EXPECT_TRUE(text_is("mesh.status", "Listening: 12 packets, 3 nodes"));
+    /* the region goes round the offered ones */
+    settings_event(&g_s, "mesh.preset", 0, 0);
+    DMOD_TEST_EXPECT_EQ(g_mesh.preset, 1);
+    DMOD_TEST_EXPECT_TRUE(text_is("mesh.preset", "EU/UK long range"));
+    settings_event(&g_s, "mesh.preset", 0, 0);
+    settings_event(&g_s, "mesh.preset", 0, 0);
+    DMOD_TEST_EXPECT_EQ(g_mesh.preset, 0);
+    /* the power moves by a dB, up to 22 and down to -9 */
+    settings_event(&g_s, "mesh.power.up", 0, 0);
+    DMOD_TEST_EXPECT_EQ(g_mesh.power, 15);
+    DMOD_TEST_EXPECT_TRUE(text_is("mesh.power", "15 dBm"));
+    g_mesh.power = 22;
+    settings_event(&g_s, "mesh.power.up", 0, 0);
+    DMOD_TEST_EXPECT_EQ(g_mesh.power, 22);
+    g_mesh.power = -9;
+    settings_event(&g_s, "mesh.power.down", 0, 0);
+    DMOD_TEST_EXPECT_EQ(g_mesh.power, -9);
+    /* the switch */
+    settings_event(&g_s, "mesh.toggle", 0, 0);
+    DMOD_TEST_EXPECT_TRUE(!g_mesh.enabled);
+    DMOD_TEST_EXPECT_TRUE(number_is("mesh.on", 0));
+    DMOD_TEST_EXPECT_TRUE(text_is("mesh.state", "Off"));
+    DMOD_TEST_EXPECT_TRUE(text_is("mesh.status", "Off"));
+    /* back to the list */
+    settings_event(&g_s, "back", 0, 0);
+    DMOD_TEST_EXPECT_TRUE(number_is("page", SETTINGS_PAGE_MAIN));
+}
+
+DMOD_TEST_STEP(mesh_page_without_a_radio_and_with_a_radio_that_refuses)
+{
+    start();
+    g_mesh.available = false;
+    settings_event(&g_s, "open.mesh", 0, 0);
+    DMOD_TEST_EXPECT_TRUE(text_is("mesh.state", "No radio"));
+    DMOD_TEST_EXPECT_TRUE(text_is("mesh.status", "There is no LoRa radio"));
+    settings_event(&g_s, "mesh.toggle", 0, 0);
+    DMOD_TEST_EXPECT_EQ(g_mesh.changes, 0);                          /* nothing to change */
+    start();
+    g_mesh.result = -EINVAL;
+    settings_event(&g_s, "open.mesh", 0, 0);
+    settings_event(&g_s, "mesh.preset", 0, 0);
+    DMOD_TEST_EXPECT_EQ(g_mesh.changes, 1);
+    DMOD_TEST_EXPECT_TRUE(text_is("mesh.status", "The radio refused it"));
+    g_mesh.result = -EIO;
+    settings_event(&g_s, "mesh.power.up", 0, 0);
+    DMOD_TEST_EXPECT_TRUE(text_is("mesh.status", "Applied, but not kept (no /ext?)"));
 }

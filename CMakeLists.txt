@@ -86,6 +86,7 @@ dmod_add_executable(${DMOD_MODULE_NAME} ${DMOD_MODULE_VERSION}
     src/settings.c
     src/settings_model.c
     src/wifi_node.c
+    src/mesh_node.c
 )
 
 
@@ -96,6 +97,7 @@ dmod_link_modules(${DMOD_MODULE_NAME}
     dmsecrets
     dmosi
     libdmview@>=0.20
+    libmeshcore@>=0.1
 )
 
 # To depend on another module's headers, use:

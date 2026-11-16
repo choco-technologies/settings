@@ -114,6 +114,61 @@ static void refresh(settings_t* s)
     mark_rows(s, &st);
 }
 
+/* ---- The mesh (LoRa) ---- */
+
+static void mesh_refresh(settings_t* s)
+{
+    settings_view_t* v = &s->view;
+    settings_mesh_state_t* m = &s->mesh_state;
+    memset(m, 0, sizeof(*m));
+    if (s->mesh.get == NULL || s->mesh.get(s->mesh.context, m) != 0 || !m->available)
+    {
+        memset(m, 0, sizeof(*m));
+        v->mesh_on = 0;
+        copy(v->mesh_state, sizeof(v->mesh_state), "No radio");
+        copy(v->mesh_status, sizeof(v->mesh_status), "There is no LoRa radio");
+        copy(v->mesh_preset, sizeof(v->mesh_preset), "-");
+        copy(v->mesh_numbers, sizeof(v->mesh_numbers), "");
+        copy(v->mesh_power, sizeof(v->mesh_power), "-");
+        return;
+    }
+    v->mesh_on = m->enabled;
+    copy(v->mesh_state, sizeof(v->mesh_state), !m->enabled ? "Off" : m->listening ? "On" : "Starting");
+    if (!m->enabled)
+        copy(v->mesh_status, sizeof(v->mesh_status), "Off");
+    else if (!m->listening)
+        copy(v->mesh_status, sizeof(v->mesh_status), "Starting...");
+    else
+        (void)Dmod_SnPrintf(v->mesh_status, sizeof(v->mesh_status), "Listening: %u packets, %u nodes", (unsigned)m->packets, (unsigned)m->nodes);
+    copy(v->mesh_preset, sizeof(v->mesh_preset), m->preset_name);
+    (void)Dmod_SnPrintf(v->mesh_numbers, sizeof(v->mesh_numbers), "%u.%03u MHz, %u.%u kHz, SF%u, 4/%u", (unsigned)(m->frequency_hz / 1000000u),
+                        (unsigned)(m->frequency_hz / 1000u % 1000u), (unsigned)(m->bandwidth_hz / 1000u), (unsigned)(m->bandwidth_hz / 100u % 10u),
+                        (unsigned)m->spreading_factor, (unsigned)m->coding_rate);
+    (void)Dmod_SnPrintf(v->mesh_power, sizeof(v->mesh_power), "%d dBm", (int)m->tx_power_dbm);
+}
+
+static void mesh_event(settings_t* s, const char* name)
+{
+    int ret = 0;
+    mesh_refresh(s);
+    if (!s->mesh_state.available || s->mesh.get == NULL)
+    {
+        copy(s->view.mesh_status, sizeof(s->view.mesh_status), "There is no LoRa radio");
+        return;
+    }
+    if (strcmp(name, "mesh.toggle") == 0)
+        ret = s->mesh.set_enabled(s->mesh.context, !s->mesh_state.enabled);
+    else if (strcmp(name, "mesh.preset") == 0 && s->mesh_state.preset_count > 0)
+        ret = s->mesh.set_preset(s->mesh.context, (uint8_t)((s->mesh_state.preset + 1U) % s->mesh_state.preset_count));
+    else if (strcmp(name, "mesh.power.up") == 0)
+        ret = s->mesh.set_power(s->mesh.context, (int8_t)(s->mesh_state.tx_power_dbm < 22 ? s->mesh_state.tx_power_dbm + 1 : 22));
+    else if (strcmp(name, "mesh.power.down") == 0)
+        ret = s->mesh.set_power(s->mesh.context, (int8_t)(s->mesh_state.tx_power_dbm > -9 ? s->mesh_state.tx_power_dbm - 1 : -9));
+    mesh_refresh(s);
+    if (ret != 0)
+        copy(s->view.mesh_status, sizeof(s->view.mesh_status), ret == -EIO ? "Applied, but not kept (no /ext?)" : "The radio refused it");
+}
+
 /* ---- The networks ---- */
 
 /* The networks of a scan: one for a name (the strongest), the hidden ones left out, the strongest first */
@@ -321,6 +376,9 @@ static void back(settings_t* s)
         case SETTINGS_PAGE_WIFI:
             go(s, SETTINGS_PAGE_MAIN);
             break;
+        case SETTINGS_PAGE_MESH:
+            go(s, SETTINGS_PAGE_MAIN);
+            break;
         default:
             break;
     }
@@ -358,6 +416,13 @@ bool settings_event(settings_t* s, const char* name, int32_t value, uint32_t now
         if (s->view.wifi_on)
             scan(s);
     }
+    else if (strcmp(name, "open.mesh") == 0)
+    {
+        mesh_refresh(s);
+        go(s, SETTINGS_PAGE_MESH);
+    }
+    else if (strncmp(name, "mesh.", 5) == 0)
+        mesh_event(s, name);
     else if (strcmp(name, "wifi.toggle") == 0)
         toggle(s);
     else if (strcmp(name, "scan") == 0)
@@ -432,6 +497,8 @@ void settings_tick(settings_t* s, uint32_t now_ms)
         s->status_at = now_ms;
         if (s->view.page == (int)SETTINGS_PAGE_MAIN || s->view.page == (int)SETTINGS_PAGE_WIFI)
             refresh(s);
+        if (s->view.page == (int)SETTINGS_PAGE_MAIN || s->view.page == (int)SETTINGS_PAGE_MESH)
+            mesh_refresh(s);
     }
     settings_publish(s);
 }
@@ -479,6 +546,12 @@ void settings_publish(settings_t* s)
     put_int(s, "wifi.busy", v->wifi_busy, o->wifi_busy);
     for (int i = 0; i < SETTINGS_ROWS; i++)
         publish_row(s, i);
+    put_text(s, "mesh.state", v->mesh_state, o->mesh_state);
+    put_text(s, "mesh.status", v->mesh_status, o->mesh_status);
+    put_text(s, "mesh.preset", v->mesh_preset, o->mesh_preset);
+    put_text(s, "mesh.numbers", v->mesh_numbers, o->mesh_numbers);
+    put_text(s, "mesh.power", v->mesh_power, o->mesh_power);
+    put_int(s, "mesh.on", v->mesh_on, o->mesh_on);
     put_text(s, "pw.ssid", v->pw_ssid, o->pw_ssid);
     put_text(s, "pw.text", v->pw_text, o->pw_text);
     put_text(s, "pw.hint", v->pw_hint, o->pw_hint);
@@ -494,12 +567,15 @@ void settings_publish(settings_t* s)
     s->published = true;
 }
 
-void settings_init(settings_t* s, const settings_wifi_ops_t* wifi, const settings_sink_t* sink)
+void settings_init(settings_t* s, const settings_wifi_ops_t* wifi, const settings_mesh_ops_t* mesh, const settings_sink_t* sink)
 {
     memset(s, 0, sizeof(*s));
     s->wifi = *wifi;
+    if (mesh != NULL)
+        s->mesh = *mesh;
     s->sink = *sink;
     s->view.page = (int)SETTINGS_PAGE_MAIN;
     refresh(s);
+    mesh_refresh(s);
     settings_publish(s);
 }
