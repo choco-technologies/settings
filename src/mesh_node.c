@@ -30,6 +30,7 @@ static int mesh_get(void* context, settings_mesh_state_t* state)
     state->spreading_factor = settings.spreading_factor;
     state->coding_rate = settings.coding_rate;
     state->tx_power_dbm = settings.tx_power_dbm;
+    Dmod_SnPrintf(state->name, sizeof(state->name), "%s", settings.name);
     state->packets = status.packets;
     libmeshcore_contact_t* contacts = Dmod_Malloc(sizeof(*contacts) * LIBMESHCORE_MAX_CONTACTS);
     size_t nodes = 0;
@@ -39,7 +40,7 @@ static int mesh_get(void* context, settings_mesh_state_t* state)
     return 0;
 }
 
-static int mesh_change(bool enabled_set, bool enabled, int preset, int power)
+static int mesh_change(bool enabled_set, bool enabled, int preset, int power, const char* name)
 {
     libmeshcore_settings_t settings;
     int ret = libmeshcore_settings_get(&settings);
@@ -51,29 +52,37 @@ static int mesh_change(bool enabled_set, bool enabled, int preset, int power)
         settings.preset = (uint8_t)preset;
     if (power > -100)
         settings.tx_power_dbm = (int8_t)power;
+    if (name != NULL)
+        Dmod_SnPrintf(settings.name, sizeof(settings.name), "%s", name);
     return libmeshcore_settings_set(&settings);
 }
 
 static int mesh_set_enabled(void* context, bool enabled)
 {
     (void)context;
-    return mesh_change(true, enabled, -1, -100);
+    return mesh_change(true, enabled, -1, -100, NULL);
 }
 
 static int mesh_set_preset(void* context, uint8_t preset)
 {
     (void)context;
-    return mesh_change(false, false, preset, -100);
+    return mesh_change(false, false, preset, -100, NULL);
 }
 
 static int mesh_set_power(void* context, int8_t dbm)
 {
     (void)context;
-    return mesh_change(false, false, -1, dbm);
+    return mesh_change(false, false, -1, dbm, NULL);
+}
+
+static int mesh_set_name(void* context, const char* name)
+{
+    (void)context;
+    return mesh_change(false, false, -1, -100, name);
 }
 
 settings_mesh_ops_t mesh_node_ops(void)
 {
-    settings_mesh_ops_t ops = { NULL, mesh_get, mesh_set_enabled, mesh_set_preset, mesh_set_power };
+    settings_mesh_ops_t ops = { NULL, mesh_get, mesh_set_enabled, mesh_set_preset, mesh_set_power, mesh_set_name };
     return ops;
 }

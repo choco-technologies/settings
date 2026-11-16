@@ -37,6 +37,7 @@ typedef struct
     uint8_t preset;
     int8_t  power;
     int     result;                     /* what a change answers */
+    char    name[32];
     int     changes;
 } mesh_t;
 
@@ -57,12 +58,14 @@ static int m_get(void* c, settings_mesh_state_t* st)
     st->spreading_factor = 8;
     st->coding_rate = 8;
     st->tx_power_dbm = g_mesh.power;
+    strcpy(st->name, g_mesh.name);
     st->packets = 12;
     st->nodes = 3;
     return 0;
 }
 static int m_enable(void* c, bool on) { (void)c; g_mesh.changes++; if (g_mesh.result == 0) g_mesh.enabled = on; return g_mesh.result; }
 static int m_preset(void* c, uint8_t p) { (void)c; g_mesh.changes++; if (g_mesh.result == 0) g_mesh.preset = p; return g_mesh.result; }
+static int m_name(void* c, const char* n) { (void)c; g_mesh.changes++; if (g_mesh.result == 0 || g_mesh.result == -EIO) strcpy(g_mesh.name, n); return g_mesh.result; }
 static int m_power(void* c, int8_t d) { (void)c; g_mesh.changes++; if (g_mesh.result == 0) g_mesh.power = d; return g_mesh.result; }
 
 
@@ -215,6 +218,7 @@ static void start(void)
     g_mesh.enabled = true;
     g_mesh.listening = true;
     g_mesh.power = 14;
+    strcpy(g_mesh.name, "DMOD node");
     g_radio.state = DMDRVI_WIFI_STATE_IDLE;
     strcpy(g_radio.right_password, "secret123");
     ap(0, "Cafe", -70, DMDRVI_WIFI_AUTH_OPEN);
@@ -224,7 +228,7 @@ static void start(void)
     ap(4, "Home", -48, DMDRVI_WIFI_AUTH_WPA2);
     g_radio.ap_count = 5;
     settings_wifi_ops_t ops = { NULL, r_status, r_scan, r_connect, r_disconnect, r_enable, r_save, r_forget, r_is_saved, r_load };
-    settings_mesh_ops_t mesh_ops = { NULL, m_get, m_enable, m_preset, m_power };     /* (on the stack: a module has no relocated data) */
+    settings_mesh_ops_t mesh_ops = { NULL, m_get, m_enable, m_preset, m_power, m_name };     /* (on the stack: a module has no relocated data) */
     settings_sink_t sink = { NULL, s_int, s_text };
     settings_init(&g_s, &ops, &mesh_ops, &sink);
 }
@@ -551,4 +555,43 @@ DMOD_TEST_STEP(mesh_page_without_a_radio_and_with_a_radio_that_refuses)
     g_mesh.result = -EIO;
     settings_event(&g_s, "mesh.power.up", 0, 0);
     DMOD_TEST_EXPECT_TRUE(text_is("mesh.status", "Applied, but not kept (no /ext?)"));
+}
+
+DMOD_TEST_STEP(mesh_name_is_typed_and_saved)
+{
+    start();
+    settings_event(&g_s, "open.mesh", 0, 0);
+    DMOD_TEST_EXPECT_TRUE(text_is("mesh.name", "DMOD node"));
+    settings_event(&g_s, "mesh.name", 0, 0);
+    DMOD_TEST_EXPECT_TRUE(number_is("page", SETTINGS_PAGE_MESH_NAME));
+    DMOD_TEST_EXPECT_TRUE(text_is("mn.text", "DMOD node|"));
+    for (int i = 0; i < 9; i++)
+        settings_key(&g_s, 0x2A, 0);                                  /* Backspace */
+    DMOD_TEST_EXPECT_TRUE(text_is("mn.text", "|"));
+    type("T-Deck ");
+    settings_char(&g_s, 0x142);                                       /* l with a stroke: two bytes */
+    DMOD_TEST_EXPECT_TRUE(text_is("mn.text", "T-Deck \xC5\x82|"));
+    settings_key(&g_s, 0x2A, 0);                                      /* the whole character goes */
+    DMOD_TEST_EXPECT_TRUE(text_is("mn.text", "T-Deck |"));
+    type("1");
+    settings_key(&g_s, 0x28, 0);                                      /* Enter saves */
+    DMOD_TEST_EXPECT_TRUE(strcmp(g_mesh.name, "T-Deck 1") == 0);
+    DMOD_TEST_EXPECT_TRUE(number_is("page", SETTINGS_PAGE_MESH));
+    DMOD_TEST_EXPECT_TRUE(text_is("mesh.name", "T-Deck 1"));
+}
+
+DMOD_TEST_STEP(mesh_name_cannot_be_empty_and_back_keeps_the_old_one)
+{
+    start();
+    settings_event(&g_s, "open.mesh", 0, 0);
+    settings_event(&g_s, "mesh.name", 0, 0);
+    for (int i = 0; i < 9; i++)
+        settings_key(&g_s, 0x2A, 0);
+    settings_event(&g_s, "mn.save", 0, 0);
+    DMOD_TEST_EXPECT_TRUE(text_is("mn.status", "The name cannot be empty"));
+    DMOD_TEST_EXPECT_TRUE(number_is("page", SETTINGS_PAGE_MESH_NAME));
+    DMOD_TEST_EXPECT_EQ(g_mesh.changes, 0);
+    settings_event(&g_s, "back", 0, 0);
+    DMOD_TEST_EXPECT_TRUE(number_is("page", SETTINGS_PAGE_MESH));
+    DMOD_TEST_EXPECT_TRUE(strcmp(g_mesh.name, "DMOD node") == 0);
 }
