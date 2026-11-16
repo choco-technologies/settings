@@ -30,6 +30,7 @@ static int mesh_get(void* context, settings_mesh_state_t* state)
     state->spreading_factor = settings.spreading_factor;
     state->coding_rate = settings.coding_rate;
     state->tx_power_dbm = settings.tx_power_dbm;
+    state->path_hash_size = settings.path_hash_size;
     Dmod_SnPrintf(state->name, sizeof(state->name), "%s", settings.name);
     state->packets = status.packets;
     libmeshcore_contact_t* contacts = Dmod_Malloc(sizeof(*contacts) * LIBMESHCORE_MAX_CONTACTS);
@@ -106,8 +107,19 @@ static int mesh_preset_name(void* context, uint8_t index, char* name, size_t siz
     return 0;
 }
 
+static int mesh_set_path_hash(void* context, uint8_t bytes)
+{
+    (void)context;
+    libmeshcore_settings_t settings;
+    int ret = libmeshcore_settings_get(&settings);
+    if (ret != 0)
+        return ret;
+    settings.path_hash_size = bytes;
+    return libmeshcore_settings_set(&settings);
+}
+
 settings_mesh_ops_t mesh_node_ops(void)
 {
-    settings_mesh_ops_t ops = { NULL, mesh_get, mesh_set_enabled, mesh_set_preset, mesh_set_power, mesh_set_name, mesh_set_radio, mesh_preset_name };
+    settings_mesh_ops_t ops = { NULL, mesh_get, mesh_set_enabled, mesh_set_preset, mesh_set_power, mesh_set_name, mesh_set_radio, mesh_preset_name, mesh_set_path_hash };
     return ops;
 }

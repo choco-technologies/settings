@@ -115,12 +115,12 @@ body { font-size: 14px; line-height: 1.2; }
 #nt-forget { left: 12px; top: 150px; width: 216px; height: 36px; line-height: 32px; }
 
 /* the numbers of the radio, and a list to choose from */
-.rd { height: 48px; }
-.rd .lbl { position: absolute; left: 12px; top: 4px; font-size: 12px; }
-.rd .val { position: absolute; left: 12px; top: 20px; width: 190px; font-size: 18px; font-weight: 700; text-align: left; }
-.rd .go { position: absolute; right: 10px; top: 12px; font-size: 22px; font-weight: 700; }
-#rd-freq { top: 36px; } #rd-bw { top: 84px; } #rd-sf { top: 132px; } #rd-cr { top: 180px; }
-#rd-note { position: absolute; left: 12px; top: 236px; width: 216px; font-size: 12px; text-align: left; }
+.rd { height: 44px; }
+.rd .lbl { position: absolute; left: 12px; top: 3px; font-size: 12px; }
+.rd .val { position: absolute; left: 12px; top: 18px; width: 190px; font-size: 18px; font-weight: 700; text-align: left; }
+.rd .go { position: absolute; right: 10px; top: 10px; font-size: 22px; font-weight: 700; }
+#rd-freq { top: 34px; } #rd-bw { top: 78px; } #rd-sf { top: 122px; } #rd-cr { top: 166px; } #rd-ph { top: 210px; }
+#rd-note { position: absolute; left: 12px; top: 256px; width: 216px; font-size: 12px; text-align: left; }
 .opt { height: 40px; }
 .opt .t { position: absolute; left: 12px; top: 9px; width: 200px; font-size: 18px; font-weight: 700; text-align: left; }
 #ch0 { top: 36px; } #ch1 { top: 76px; } #ch2 { top: 116px; } #ch3 { top: 156px; } #ch4 { top: 196px; }
@@ -190,7 +190,8 @@ body { font-size: 14px; line-height: 1.2; }
   <div class="row rd" id="rd-bw"><div class="lbl">Bandwidth</div><div class="val nowrap" id="rd-bw-v">62.5 kHz</div><div class="go">&gt;</div></div>
   <div class="row rd" id="rd-sf"><div class="lbl">Spreading factor</div><div class="val nowrap" id="rd-sf-v">SF8</div><div class="go">&gt;</div></div>
   <div class="row rd" id="rd-cr"><div class="lbl">Coding rate</div><div class="val nowrap" id="rd-cr-v">4/8</div><div class="go">&gt;</div></div>
-  <div id="rd-note" class="nowrap">Any of them sets the region to Custom</div>
+  <div class="row rd" id="rd-ph"><div class="lbl">Path hash size</div><div class="val nowrap" id="rd-ph-v">1 B</div><div class="go">&gt;</div></div>
+  <div id="rd-note" class="nowrap">Frequency to CR: region Custom</div>
 </div>
 
 <div class="page" id="choice">
@@ -356,18 +357,20 @@ ntForget.addEventListener('click', () => dmod.emit('nt.forget'));
 document.getElementById('nt-back').addEventListener('click', () => dmod.emit('back'));
 
 /* the numbers of the radio: each opens a list to choose from (nothing changes until an entry of the list is touched) */
-dmod.prop('rd.freq', ''); dmod.prop('rd.bw', ''); dmod.prop('rd.sf', ''); dmod.prop('rd.cr', '');
-const rdFreq = document.getElementById('rd-freq-v'), rdBw = document.getElementById('rd-bw-v'), rdSf = document.getElementById('rd-sf-v'), rdCr = document.getElementById('rd-cr-v');
+dmod.prop('rd.freq', ''); dmod.prop('rd.bw', ''); dmod.prop('rd.sf', ''); dmod.prop('rd.cr', ''); dmod.prop('rd.ph', '');
+const rdFreq = document.getElementById('rd-freq-v'), rdBw = document.getElementById('rd-bw-v'), rdSf = document.getElementById('rd-sf-v'), rdCr = document.getElementById('rd-cr-v'), rdPh = document.getElementById('rd-ph-v');
 dmod.onchange('rd.freq', () => rdFreq.innerText = dmod.get('rd.freq'));
 dmod.onchange('rd.bw', () => rdBw.innerText = dmod.get('rd.bw'));
 dmod.onchange('rd.sf', () => rdSf.innerText = dmod.get('rd.sf'));
 dmod.onchange('rd.cr', () => rdCr.innerText = dmod.get('rd.cr'));
+dmod.onchange('rd.ph', () => rdPh.innerText = dmod.get('rd.ph'));
 document.getElementById('mesh-radio').addEventListener('click', () => dmod.emit('mesh.radio'));
 document.getElementById('rd-back').addEventListener('click', () => dmod.emit('back'));
 document.getElementById('rd-freq').addEventListener('click', () => dmod.emit('mesh.rd.freq'));
 document.getElementById('rd-bw').addEventListener('click', () => dmod.emit('mesh.rd.bw'));
 document.getElementById('rd-sf').addEventListener('click', () => dmod.emit('mesh.rd.sf'));
 document.getElementById('rd-cr').addEventListener('click', () => dmod.emit('mesh.rd.cr'));
+document.getElementById('rd-ph').addEventListener('click', () => dmod.emit('mesh.rd.ph'));
 dmod.prop('ch.title', 'Region'); dmod.prop('ch.info', '');
 const chTitle = document.getElementById('ch-title'), chInfo = document.getElementById('ch-info');
 dmod.onchange('ch.title', () => chTitle.innerText = dmod.get('ch.title'));

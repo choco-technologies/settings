@@ -37,7 +37,7 @@ typedef struct
     uint8_t preset;
     int8_t  power;
     uint32_t frequency, bandwidth;
-    uint8_t sf, cr;
+    uint8_t sf, cr, ph;
     int     result;                     /* what a change answers */
     char    name[32];
     int     changes;
@@ -59,6 +59,7 @@ static int m_get(void* c, settings_mesh_state_t* st)
     st->bandwidth_hz = g_mesh.bandwidth;
     st->spreading_factor = g_mesh.sf;
     st->coding_rate = g_mesh.cr;
+    st->path_hash_size = g_mesh.ph;
     st->tx_power_dbm = g_mesh.power;
     strcpy(st->name, g_mesh.name);
     st->packets = 12;
@@ -90,6 +91,7 @@ static int m_pname(void* c, uint8_t i, char* name, size_t size)
     (void)Dmod_SnPrintf(name, size, "%s", i == 0 ? "EU/UK narrow" : i == 1 ? "EU/UK long range" : "USA/Canada");
     return 0;
 }
+static int m_ph(void* c, uint8_t b) { (void)c; g_mesh.changes++; if (g_mesh.result == 0) g_mesh.ph = b; return g_mesh.result; }
 static int m_power(void* c, int8_t d) { (void)c; g_mesh.changes++; if (g_mesh.result == 0) g_mesh.power = d; return g_mesh.result; }
 
 
@@ -246,6 +248,7 @@ static void start(void)
     g_mesh.bandwidth = 62500u;
     g_mesh.sf = 8;
     g_mesh.cr = 8;
+    g_mesh.ph = 1;
     strcpy(g_mesh.name, "DMOD node");
     g_radio.state = DMDRVI_WIFI_STATE_IDLE;
     strcpy(g_radio.right_password, "secret123");
@@ -256,7 +259,7 @@ static void start(void)
     ap(4, "Home", -48, DMDRVI_WIFI_AUTH_WPA2);
     g_radio.ap_count = 5;
     settings_wifi_ops_t ops = { NULL, r_status, r_scan, r_connect, r_disconnect, r_enable, r_save, r_forget, r_is_saved, r_load };
-    settings_mesh_ops_t mesh_ops = { NULL, m_get, m_enable, m_preset, m_power, m_name, m_radio, m_pname };     /* (on the stack: a module has no relocated data) */
+    settings_mesh_ops_t mesh_ops = { NULL, m_get, m_enable, m_preset, m_power, m_name, m_radio, m_pname, m_ph };     /* (on the stack: a module has no relocated data) */
     settings_sink_t sink = { NULL, s_int, s_text };
     settings_init(&g_s, &ops, &mesh_ops, &sink);
 }
@@ -622,6 +625,16 @@ DMOD_TEST_STEP(the_numbers_of_the_radio_are_chosen_from_lists)
     DMOD_TEST_EXPECT_TRUE(number_is("page", SETTINGS_PAGE_MESH_RADIO));
     settings_event(&g_s, "back", 0, 0);
     DMOD_TEST_EXPECT_TRUE(number_is("page", SETTINGS_PAGE_MESH));
+    /* the size of the hash of the path: 1 B, 2 B, 3 B; it does not make the region custom */
+    DMOD_TEST_EXPECT_TRUE(text_is("rd.ph", "1 B"));
+    settings_event(&g_s, "mesh.rd.ph", 0, 0);
+    DMOD_TEST_EXPECT_TRUE(text_is("ch.title", "Path hash size"));
+    DMOD_TEST_EXPECT_TRUE(text_is("ch0.text", "> 1 B"));
+    DMOD_TEST_EXPECT_TRUE(text_is("ch2.text", "3 B"));
+    settings_event(&g_s, "ch.row", 1, 0);
+    DMOD_TEST_EXPECT_EQ(g_mesh.ph, 2);
+    DMOD_TEST_EXPECT_TRUE(text_is("rd.ph", "2 B"));
+    DMOD_TEST_EXPECT_TRUE(number_is("page", SETTINGS_PAGE_MESH_RADIO));
     /* a radio that refuses says so */
     g_mesh.result = -EINVAL;
     settings_event(&g_s, "mesh.radio", 0, 0);

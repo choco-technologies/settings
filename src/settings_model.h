@@ -68,6 +68,7 @@ typedef struct
     uint8_t     spreading_factor;
     uint8_t     coding_rate;        /**< 5..8: 4/5 .. 4/8 */
     int8_t      tx_power_dbm;
+    uint8_t     path_hash_size;     /**< 1..3 bytes */
     char        name[32];           /**< The name of this node in the mesh */
     uint32_t    packets;            /**< Heard since the start */
     uint32_t    nodes;              /**< Nodes that were heard */
@@ -86,6 +87,8 @@ typedef struct
     int     (*set_radio)(void* context, uint32_t frequency_hz, uint32_t bandwidth_hz, uint8_t spreading_factor, uint8_t coding_rate);
     /** The name of a region (0 .. preset_count - 1) */
     int     (*preset_name)(void* context, uint8_t index, char* name, size_t size);
+    /** The size of the hash of the path of what this node sends: 1, 2 or 3 bytes */
+    int     (*set_path_hash)(void* context, uint8_t bytes);
 } settings_mesh_ops_t;
 
 /** @brief Where the properties of the page are set (libdmview_prop_set_*) */
@@ -140,6 +143,7 @@ typedef struct
     char            rd_bw[SETTINGS_TEXT];
     char            rd_sf[SETTINGS_TEXT];
     char            rd_cr[SETTINGS_TEXT];
+    char            rd_ph[SETTINGS_TEXT];
     char            ch_title[SETTINGS_TEXT];        /* a list to choose from: its name, the rows (the chosen one marked), which of how many */
     int             ch_on[SETTINGS_CHOICE_ROWS];
     char            ch_text[SETTINGS_CHOICE_ROWS][SETTINGS_TEXT];
@@ -179,7 +183,7 @@ void settings_init(settings_t* settings, const settings_wifi_ops_t* wifi, const 
 
 /**
  * @brief An event of the page: "back", "open.wifi", "wifi.toggle", "scan", "row" (value: the row), "pw.show", "pw.connect",
- *        "nt.disconnect", "nt.forget", "open.mesh", "mesh.toggle", "mesh.preset" (opens the list of regions), "mesh.radio" (the page of the numbers), "mesh.rd.freq|bw|sf|cr" (open the list of one), "ch.row" (value: the row), "ch.prev", "ch.next", "mesh.power.up", "mesh.power.down", "mesh.name" (opens the page of the name), "mn.save". Unknown ones are ignored.
+ *        "nt.disconnect", "nt.forget", "open.mesh", "mesh.toggle", "mesh.preset" (opens the list of regions), "mesh.radio" (the page of the numbers), "mesh.rd.freq|bw|sf|cr|ph" (open the list of one), "ch.row" (value: the row), "ch.prev", "ch.next", "mesh.power.up", "mesh.power.down", "mesh.name" (opens the page of the name), "mn.save". Unknown ones are ignored.
  * @return true when the event was one of these
  */
 bool settings_event(settings_t* settings, const char* name, int32_t value, uint32_t now_ms);

@@ -118,7 +118,7 @@ static void go(settings_t* s, settings_page_t page);
 
 /* ---- The mesh (LoRa) ---- */
 
-typedef enum { CHOICE_REGION = 0, CHOICE_FREQUENCY, CHOICE_BANDWIDTH, CHOICE_SPREADING, CHOICE_CODING } settings_choice_t;
+typedef enum { CHOICE_REGION = 0, CHOICE_FREQUENCY, CHOICE_BANDWIDTH, CHOICE_SPREADING, CHOICE_CODING, CHOICE_PATH_HASH } settings_choice_t;
 
 static void choice_open(settings_t* s, int kind);
 
@@ -155,6 +155,7 @@ static void mesh_refresh(settings_t* s)
         copy(v->rd_bw, sizeof(v->rd_bw), "-");
         copy(v->rd_sf, sizeof(v->rd_sf), "-");
         copy(v->rd_cr, sizeof(v->rd_cr), "-");
+        copy(v->rd_ph, sizeof(v->rd_ph), "-");
         return;
     }
     v->mesh_on = m->enabled;
@@ -174,6 +175,7 @@ static void mesh_refresh(settings_t* s)
     format_bandwidth(v->rd_bw, sizeof(v->rd_bw), m->bandwidth_hz);
     (void)Dmod_SnPrintf(v->rd_sf, sizeof(v->rd_sf), "SF%u", (unsigned)m->spreading_factor);
     (void)Dmod_SnPrintf(v->rd_cr, sizeof(v->rd_cr), "4/%u", (unsigned)m->coding_rate);
+    (void)Dmod_SnPrintf(v->rd_ph, sizeof(v->rd_ph), "%u B", (unsigned)m->path_hash_size);
     copy(v->mesh_name, sizeof(v->mesh_name), m->name);
 }
 
@@ -225,7 +227,7 @@ static void mesh_event(settings_t* s, const char* name)
     }
     else if (strncmp(name, "mesh.rd.", 8) == 0)
     {
-        choice_open(s, strcmp(name + 8, "freq") == 0 ? CHOICE_FREQUENCY : strcmp(name + 8, "bw") == 0 ? CHOICE_BANDWIDTH : strcmp(name + 8, "sf") == 0 ? CHOICE_SPREADING : CHOICE_CODING);
+        choice_open(s, strcmp(name + 8, "freq") == 0 ? CHOICE_FREQUENCY : strcmp(name + 8, "bw") == 0 ? CHOICE_BANDWIDTH : strcmp(name + 8, "sf") == 0 ? CHOICE_SPREADING : strcmp(name + 8, "ph") == 0 ? CHOICE_PATH_HASH : CHOICE_CODING);
         return;
     }
     else if (strcmp(name, "mesh.power.up") == 0)
@@ -324,6 +326,15 @@ static void choice_open(settings_t* s, int kind)
             choice_add(s, sf, label);
         }
     }
+    else if (kind == CHOICE_PATH_HASH)
+    {
+        copy(s->view.ch_title, SETTINGS_TEXT, "Path hash size");
+        for (uint32_t bytes = 1; bytes <= 3; bytes++)
+        {
+            (void)Dmod_SnPrintf(label, sizeof(label), "%u B", (unsigned)bytes);
+            choice_add(s, bytes, label);
+        }
+    }
     else
     {
         copy(s->view.ch_title, SETTINGS_TEXT, "Coding rate");
@@ -334,7 +345,7 @@ static void choice_open(settings_t* s, int kind)
         }
     }
     uint32_t now = kind == CHOICE_REGION ? m->preset : kind == CHOICE_FREQUENCY ? m->frequency_hz : kind == CHOICE_BANDWIDTH ? m->bandwidth_hz :
-                   kind == CHOICE_SPREADING ? m->spreading_factor : m->coding_rate;
+                   kind == CHOICE_SPREADING ? m->spreading_factor : kind == CHOICE_PATH_HASH ? m->path_hash_size : m->coding_rate;
     for (int i = 0; i < s->choice_count; i++)
         if (s->choice_value[i] == now)
             s->choice_current = i;
@@ -354,6 +365,8 @@ static void choice_pick(settings_t* s, int row)
     int ret = -ENODEV;
     if (s->choice_kind == CHOICE_REGION)
         ret = s->mesh.set_preset != NULL ? s->mesh.set_preset(s->mesh.context, (uint8_t)value) : -ENODEV;
+    else if (s->choice_kind == CHOICE_PATH_HASH)
+        ret = s->mesh.set_path_hash != NULL ? s->mesh.set_path_hash(s->mesh.context, (uint8_t)value) : -ENODEV;
     else if (s->mesh.set_radio != NULL)
         ret = s->mesh.set_radio(s->mesh.context, s->choice_kind == CHOICE_FREQUENCY ? value : m->frequency_hz,
                                 s->choice_kind == CHOICE_BANDWIDTH ? value : m->bandwidth_hz,
@@ -832,6 +845,7 @@ void settings_publish(settings_t* s)
     put_text(s, "rd.bw", v->rd_bw, o->rd_bw);
     put_text(s, "rd.sf", v->rd_sf, o->rd_sf);
     put_text(s, "rd.cr", v->rd_cr, o->rd_cr);
+    put_text(s, "rd.ph", v->rd_ph, o->rd_ph);
     put_text(s, "ch.title", v->ch_title, o->ch_title);
     put_text(s, "ch.info", v->ch_info, o->ch_info);
     for (int i = 0; i < SETTINGS_CHOICE_ROWS; i++)
