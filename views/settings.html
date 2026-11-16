@@ -58,13 +58,17 @@ body { font-size: 14px; line-height: 1.2; }
 #msw-on { background: #000; color: #fff; }
 #msw-off { background: #fff; color: #000; }
 #mesh-status { position: absolute; left: 12px; top: 74px; width: 216px; font-size: 12px; }
-#mesh-preset { top: 96px; height: 52px; }
-#mesh-preset .lbl { position: absolute; left: 12px; top: 4px; font-size: 12px; }
-#mesh-preset .val { position: absolute; left: 12px; top: 20px; width: 190px; font-size: 18px; font-weight: 700; }
-#mesh-preset .go { position: absolute; right: 10px; top: 14px; font-size: 22px; font-weight: 700; }
-#mesh-name { top: 152px; height: 40px; }
+#mesh-preset { top: 92px; height: 40px; }
+#mesh-preset .lbl { position: absolute; left: 12px; top: 2px; font-size: 12px; }
+#mesh-preset .val { position: absolute; left: 12px; top: 16px; width: 190px; font-size: 16px; font-weight: 700; text-align: left; }
+#mesh-preset .go { position: absolute; right: 10px; top: 8px; font-size: 22px; font-weight: 700; }
+#mesh-radio { top: 132px; height: 40px; }
+#mesh-radio .lbl { position: absolute; left: 12px; top: 2px; font-size: 12px; }
+#mesh-radio .val { position: absolute; left: 12px; top: 18px; width: 200px; font-size: 12px; font-weight: 700; text-align: left; }
+#mesh-radio .go { position: absolute; right: 10px; top: 8px; font-size: 22px; font-weight: 700; }
+#mesh-name { top: 172px; height: 40px; }
 #mesh-name .lbl { position: absolute; left: 12px; top: 2px; font-size: 12px; }
-#mesh-name .val { position: absolute; left: 12px; top: 16px; width: 190px; font-size: 16px; font-weight: 700; }
+#mesh-name .val { position: absolute; left: 12px; top: 16px; width: 190px; font-size: 16px; font-weight: 700; text-align: left; }
 #mesh-name .go { position: absolute; right: 10px; top: 8px; font-size: 22px; font-weight: 700; }
 #mn-label { position: absolute; left: 12px; top: 40px; font-size: 12px; }
 #mn-field { position: absolute; left: 10px; top: 58px; width: 220px; height: 32px; border: 2px solid #000; border-radius: 6px; }
@@ -73,11 +77,10 @@ body { font-size: 14px; line-height: 1.2; }
 #mn-status { position: absolute; left: 12px; top: 116px; width: 216px; font-size: 13px; font-weight: 700; }
 #mn-save { left: 70px; top: 146px; width: 100px; height: 34px; line-height: 30px; background: #000; color: #fff; }
 #mn-save:active { background: #fff; color: #000; }
-#mesh-numbers { position: absolute; left: 12px; top: 196px; width: 216px; font-size: 12px; }
-#mesh-power-l { position: absolute; left: 12px; top: 214px; font-size: 12px; }
-#mesh-power-v { position: absolute; left: 12px; top: 230px; width: 120px; font-size: 18px; font-weight: 700; }
-#mesh-down { left: 130px; top: 222px; width: 44px; height: 34px; line-height: 28px; font-size: 22px; }
-#mesh-up { left: 184px; top: 222px; width: 44px; height: 34px; line-height: 28px; font-size: 22px; }
+#mesh-power-l { position: absolute; left: 12px; top: 216px; font-size: 12px; }
+#mesh-power-v { position: absolute; left: 12px; top: 232px; width: 120px; font-size: 18px; font-weight: 700; }
+#mesh-down { left: 130px; top: 224px; width: 44px; height: 34px; line-height: 28px; font-size: 22px; }
+#mesh-up { left: 184px; top: 224px; width: 44px; height: 34px; line-height: 28px; font-size: 22px; }
 
 /* Wi-Fi */
 #wifi .sw { position: absolute; left: 0; top: 36px; width: 240px; height: 36px; }
@@ -110,6 +113,20 @@ body { font-size: 14px; line-height: 1.2; }
 #nt-state { position: absolute; left: 12px; top: 68px; width: 204px; font-size: 13px; }
 #nt-disconnect { left: 12px; top: 104px; width: 216px; height: 36px; line-height: 32px; }
 #nt-forget { left: 12px; top: 150px; width: 216px; height: 36px; line-height: 32px; }
+
+/* the numbers of the radio, and a list to choose from */
+.rd { height: 48px; }
+.rd .lbl { position: absolute; left: 12px; top: 4px; font-size: 12px; }
+.rd .val { position: absolute; left: 12px; top: 20px; width: 190px; font-size: 18px; font-weight: 700; text-align: left; }
+.rd .go { position: absolute; right: 10px; top: 12px; font-size: 22px; font-weight: 700; }
+#rd-freq { top: 36px; } #rd-bw { top: 84px; } #rd-sf { top: 132px; } #rd-cr { top: 180px; }
+#rd-note { position: absolute; left: 12px; top: 236px; width: 216px; font-size: 12px; text-align: left; }
+.opt { height: 40px; }
+.opt .t { position: absolute; left: 12px; top: 9px; width: 200px; font-size: 18px; font-weight: 700; text-align: left; }
+#ch0 { top: 36px; } #ch1 { top: 76px; } #ch2 { top: 116px; } #ch3 { top: 156px; } #ch4 { top: 196px; }
+.chpg { top: 242px; width: 52px; height: 28px; line-height: 24px; font-size: 16px; }
+#ch-prev { left: 6px; } #ch-next { left: 182px; }
+#ch-info { position: absolute; left: 60px; top: 248px; width: 120px; text-align: center; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -150,8 +167,8 @@ body { font-size: 14px; line-height: 1.2; }
   </div>
   <div id="mesh-status" class="nowrap">Listening</div>
   <div class="row" id="mesh-preset"><div class="lbl">Region</div><div class="val nowrap" id="mesh-preset-v">EU/UK narrow</div><div class="go">&gt;</div><div class="hair" style="left:0;width:240px;top:51px"></div></div>
+  <div class="row" id="mesh-radio"><div class="lbl">Frequency, bandwidth, SF, CR</div><div class="val nowrap" id="mesh-numbers">869.618 MHz, 62.5 kHz, SF8</div><div class="go">&gt;</div><div class="hair" style="left:0;width:240px;top:39px"></div></div>
   <div class="row" id="mesh-name"><div class="lbl">Name of this node</div><div class="val nowrap" id="mesh-name-v">DMOD node</div><div class="go">&gt;</div><div class="hair" style="left:0;width:240px;top:39px"></div></div>
-  <div id="mesh-numbers" class="nowrap">869.618 MHz, 62.5 kHz, SF8</div>
   <div id="mesh-power-l">Transmit power</div>
   <div id="mesh-power-v" class="nowrap">14 dBm</div>
   <div class="btn" id="mesh-down">-</div>
@@ -165,6 +182,25 @@ body { font-size: 14px; line-height: 1.2; }
   <div id="mn-hint" class="nowrap">Type the name, Enter saves</div>
   <div id="mn-status" class="nowrap"></div>
   <div class="btn" id="mn-save">Save</div>
+</div>
+
+<div class="page" id="mesh-radio-page">
+  <div class="hdr"><div class="back" id="rd-back">&lt;</div><div class="name">Radio</div><div class="rule"></div></div>
+  <div class="row rd" id="rd-freq"><div class="lbl">Frequency</div><div class="val nowrap" id="rd-freq-v">869.618 MHz</div><div class="go">&gt;</div></div>
+  <div class="row rd" id="rd-bw"><div class="lbl">Bandwidth</div><div class="val nowrap" id="rd-bw-v">62.5 kHz</div><div class="go">&gt;</div></div>
+  <div class="row rd" id="rd-sf"><div class="lbl">Spreading factor</div><div class="val nowrap" id="rd-sf-v">SF8</div><div class="go">&gt;</div></div>
+  <div class="row rd" id="rd-cr"><div class="lbl">Coding rate</div><div class="val nowrap" id="rd-cr-v">4/8</div><div class="go">&gt;</div></div>
+  <div id="rd-note" class="nowrap">Any of them sets the region to Custom</div>
+</div>
+
+<div class="page" id="choice">
+  <div class="hdr"><div class="back" id="ch-back">&lt;</div><div class="name" id="ch-title">Region</div><div class="rule"></div></div>
+  <div class="row opt" id="ch0"><div class="t nowrap" id="ch0-t">Option</div><div class="hair" style="left:0;width:240px;top:39px"></div></div>
+  <div class="row opt" id="ch1"><div class="t nowrap" id="ch1-t">Option</div><div class="hair" style="left:0;width:240px;top:39px"></div></div>
+  <div class="row opt" id="ch2"><div class="t nowrap" id="ch2-t">Option</div><div class="hair" style="left:0;width:240px;top:39px"></div></div>
+  <div class="row opt" id="ch3"><div class="t nowrap" id="ch3-t">Option</div><div class="hair" style="left:0;width:240px;top:39px"></div></div>
+  <div class="row opt" id="ch4"><div class="t nowrap" id="ch4-t">Option</div><div class="hair" style="left:0;width:240px;top:39px"></div></div>
+  <div class="btn chpg" id="ch-prev">&lt;</div><div id="ch-info" class="nowrap">1-5 of 8</div><div class="btn chpg" id="ch-next">&gt;</div>
 </div>
 
 <div class="page" id="password">
@@ -196,7 +232,7 @@ body { font-size: 14px; line-height: 1.2; }
  * goes to the application as events (dmod.emit) - src/settings_model.c is on the other side. The names are the contract (docs/contract.md).
  */
 const pages = [document.getElementById('main'), document.getElementById('wifi'), document.getElementById('password'),
-               document.getElementById('network'), document.getElementById('mesh'), document.getElementById('mesh-name-page')];
+               document.getElementById('network'), document.getElementById('mesh'), document.getElementById('mesh-name-page'), document.getElementById('mesh-radio-page'), document.getElementById('choice')];
 function shown(el, on) { if (on) el.classList.remove('hidden'); else el.classList.add('hidden'); }
 
 /* Every character the application may send - a name of a network, a password: the font of the view has only the characters of the page and
@@ -318,6 +354,35 @@ dmod.onchange('nt.saved', () => shown(ntForget, dmod.get('nt.saved')));
 document.getElementById('nt-disconnect').addEventListener('click', () => dmod.emit('nt.disconnect'));
 ntForget.addEventListener('click', () => dmod.emit('nt.forget'));
 document.getElementById('nt-back').addEventListener('click', () => dmod.emit('back'));
+
+/* the numbers of the radio: each opens a list to choose from (nothing changes until an entry of the list is touched) */
+dmod.prop('rd.freq', ''); dmod.prop('rd.bw', ''); dmod.prop('rd.sf', ''); dmod.prop('rd.cr', '');
+const rdFreq = document.getElementById('rd-freq-v'), rdBw = document.getElementById('rd-bw-v'), rdSf = document.getElementById('rd-sf-v'), rdCr = document.getElementById('rd-cr-v');
+dmod.onchange('rd.freq', () => rdFreq.innerText = dmod.get('rd.freq'));
+dmod.onchange('rd.bw', () => rdBw.innerText = dmod.get('rd.bw'));
+dmod.onchange('rd.sf', () => rdSf.innerText = dmod.get('rd.sf'));
+dmod.onchange('rd.cr', () => rdCr.innerText = dmod.get('rd.cr'));
+document.getElementById('mesh-radio').addEventListener('click', () => dmod.emit('mesh.radio'));
+document.getElementById('rd-back').addEventListener('click', () => dmod.emit('back'));
+document.getElementById('rd-freq').addEventListener('click', () => dmod.emit('mesh.rd.freq'));
+document.getElementById('rd-bw').addEventListener('click', () => dmod.emit('mesh.rd.bw'));
+document.getElementById('rd-sf').addEventListener('click', () => dmod.emit('mesh.rd.sf'));
+document.getElementById('rd-cr').addEventListener('click', () => dmod.emit('mesh.rd.cr'));
+dmod.prop('ch.title', 'Region'); dmod.prop('ch.info', '');
+const chTitle = document.getElementById('ch-title'), chInfo = document.getElementById('ch-info');
+dmod.onchange('ch.title', () => chTitle.innerText = dmod.get('ch.title'));
+dmod.onchange('ch.info', () => chInfo.innerText = dmod.get('ch.info'));
+document.getElementById('ch-back').addEventListener('click', () => dmod.emit('back'));
+document.getElementById('ch-prev').addEventListener('click', () => dmod.emit('ch.prev'));
+document.getElementById('ch-next').addEventListener('click', () => dmod.emit('ch.next'));
+for (let i = 0; i < 5; i++) {
+    dmod.prop('ch' + i + '.on', 0);
+    dmod.prop('ch' + i + '.text', '');
+    const row = document.getElementById('ch' + i), text = document.getElementById('ch' + i + '-t');
+    dmod.onchange('ch' + i + '.text', () => text.innerText = dmod.get('ch' + i + '.text'));
+    dmod.onchange('ch' + i + '.on', () => shown(row, dmod.get('ch' + i + '.on')));
+    row.addEventListener('click', () => dmod.emit('ch.row', i));
+}
 </script>
 </body>
 </html>

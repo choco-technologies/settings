@@ -36,6 +36,8 @@ typedef struct
     bool    available, enabled, listening;
     uint8_t preset;
     int8_t  power;
+    uint32_t frequency, bandwidth;
+    uint8_t sf, cr;
     int     result;                     /* what a change answers */
     char    name[32];
     int     changes;
@@ -53,10 +55,10 @@ static int m_get(void* c, settings_mesh_state_t* st)
     st->preset = g_mesh.preset;
     st->preset_count = 3;
     strcpy(st->preset_name, g_mesh.preset == 0 ? "EU/UK narrow" : g_mesh.preset == 1 ? "EU/UK long range" : "USA/Canada");
-    st->frequency_hz = 869618000u;
-    st->bandwidth_hz = 62500u;
-    st->spreading_factor = 8;
-    st->coding_rate = 8;
+    st->frequency_hz = g_mesh.frequency;
+    st->bandwidth_hz = g_mesh.bandwidth;
+    st->spreading_factor = g_mesh.sf;
+    st->coding_rate = g_mesh.cr;
     st->tx_power_dbm = g_mesh.power;
     strcpy(st->name, g_mesh.name);
     st->packets = 12;
@@ -66,6 +68,28 @@ static int m_get(void* c, settings_mesh_state_t* st)
 static int m_enable(void* c, bool on) { (void)c; g_mesh.changes++; if (g_mesh.result == 0) g_mesh.enabled = on; return g_mesh.result; }
 static int m_preset(void* c, uint8_t p) { (void)c; g_mesh.changes++; if (g_mesh.result == 0) g_mesh.preset = p; return g_mesh.result; }
 static int m_name(void* c, const char* n) { (void)c; g_mesh.changes++; if (g_mesh.result == 0 || g_mesh.result == -EIO) strcpy(g_mesh.name, n); return g_mesh.result; }
+static int m_radio(void* c, uint32_t f, uint32_t b, uint8_t sf, uint8_t cr)
+{
+    (void)c;
+    g_mesh.changes++;
+    if (g_mesh.result == 0)
+    {
+        g_mesh.frequency = f;
+        g_mesh.bandwidth = b;
+        g_mesh.sf = sf;
+        g_mesh.cr = cr;
+        g_mesh.preset = 3;                                  /* the custom one */
+    }
+    return g_mesh.result;
+}
+static int m_pname(void* c, uint8_t i, char* name, size_t size)
+{
+    (void)c;
+    if (i > 2)
+        return -ENOENT;
+    (void)Dmod_SnPrintf(name, size, "%s", i == 0 ? "EU/UK narrow" : i == 1 ? "EU/UK long range" : "USA/Canada");
+    return 0;
+}
 static int m_power(void* c, int8_t d) { (void)c; g_mesh.changes++; if (g_mesh.result == 0) g_mesh.power = d; return g_mesh.result; }
 
 
@@ -218,6 +242,10 @@ static void start(void)
     g_mesh.enabled = true;
     g_mesh.listening = true;
     g_mesh.power = 14;
+    g_mesh.frequency = 869618000u;
+    g_mesh.bandwidth = 62500u;
+    g_mesh.sf = 8;
+    g_mesh.cr = 8;
     strcpy(g_mesh.name, "DMOD node");
     g_radio.state = DMDRVI_WIFI_STATE_IDLE;
     strcpy(g_radio.right_password, "secret123");
@@ -228,7 +256,7 @@ static void start(void)
     ap(4, "Home", -48, DMDRVI_WIFI_AUTH_WPA2);
     g_radio.ap_count = 5;
     settings_wifi_ops_t ops = { NULL, r_status, r_scan, r_connect, r_disconnect, r_enable, r_save, r_forget, r_is_saved, r_load };
-    settings_mesh_ops_t mesh_ops = { NULL, m_get, m_enable, m_preset, m_power, m_name };     /* (on the stack: a module has no relocated data) */
+    settings_mesh_ops_t mesh_ops = { NULL, m_get, m_enable, m_preset, m_power, m_name, m_radio, m_pname };     /* (on the stack: a module has no relocated data) */
     settings_sink_t sink = { NULL, s_int, s_text };
     settings_init(&g_s, &ops, &mesh_ops, &sink);
 }
@@ -509,13 +537,25 @@ DMOD_TEST_STEP(mesh_page_shows_the_mesh_and_changes_it)
     DMOD_TEST_EXPECT_TRUE(text_is("mesh.numbers", "869.618 MHz, 62.5 kHz, SF8, 4/8"));
     DMOD_TEST_EXPECT_TRUE(text_is("mesh.power", "14 dBm"));
     DMOD_TEST_EXPECT_TRUE(text_is("mesh.status", "Listening: 12 packets, 3 nodes"));
-    /* the region goes round the offered ones */
+    /* the region is chosen from a list: a touch on it only opens the list, nothing changes until an entry is touched */
     settings_event(&g_s, "mesh.preset", 0, 0);
-    DMOD_TEST_EXPECT_EQ(g_mesh.preset, 1);
-    DMOD_TEST_EXPECT_TRUE(text_is("mesh.preset", "EU/UK long range"));
-    settings_event(&g_s, "mesh.preset", 0, 0);
-    settings_event(&g_s, "mesh.preset", 0, 0);
+    DMOD_TEST_EXPECT_TRUE(number_is("page", SETTINGS_PAGE_CHOICE));
     DMOD_TEST_EXPECT_EQ(g_mesh.preset, 0);
+    DMOD_TEST_EXPECT_EQ(g_mesh.changes, 0);
+    DMOD_TEST_EXPECT_TRUE(text_is("ch.title", "Region"));
+    DMOD_TEST_EXPECT_TRUE(text_is("ch0.text", "> EU/UK narrow"));            /* the one that is set is marked */
+    DMOD_TEST_EXPECT_TRUE(text_is("ch1.text", "EU/UK long range"));
+    DMOD_TEST_EXPECT_TRUE(text_is("ch2.text", "USA/Canada"));
+    DMOD_TEST_EXPECT_TRUE(number_is("ch2.on", 1));
+    DMOD_TEST_EXPECT_TRUE(number_is("ch3.on", 0));
+    settings_event(&g_s, "back", 0, 0);                                        /* back without a choice: nothing was set */
+    DMOD_TEST_EXPECT_TRUE(number_is("page", SETTINGS_PAGE_MESH));
+    DMOD_TEST_EXPECT_EQ(g_mesh.changes, 0);
+    settings_event(&g_s, "mesh.preset", 0, 0);
+    settings_event(&g_s, "ch.row", 1, 0);
+    DMOD_TEST_EXPECT_EQ(g_mesh.preset, 1);
+    DMOD_TEST_EXPECT_TRUE(number_is("page", SETTINGS_PAGE_MESH));
+    DMOD_TEST_EXPECT_TRUE(text_is("mesh.preset", "EU/UK long range"));
     /* the power moves by a dB, up to 22 and down to -9 */
     settings_event(&g_s, "mesh.power.up", 0, 0);
     DMOD_TEST_EXPECT_EQ(g_mesh.power, 15);
@@ -537,6 +577,59 @@ DMOD_TEST_STEP(mesh_page_shows_the_mesh_and_changes_it)
     DMOD_TEST_EXPECT_TRUE(number_is("page", SETTINGS_PAGE_MAIN));
 }
 
+DMOD_TEST_STEP(the_numbers_of_the_radio_are_chosen_from_lists)
+{
+    start();
+    settings_event(&g_s, "open.mesh", 0, 0);
+    settings_event(&g_s, "mesh.radio", 0, 0);
+    DMOD_TEST_EXPECT_TRUE(number_is("page", SETTINGS_PAGE_MESH_RADIO));
+    DMOD_TEST_EXPECT_TRUE(text_is("rd.freq", "869.618 MHz"));
+    DMOD_TEST_EXPECT_TRUE(text_is("rd.bw", "62.5 kHz"));
+    DMOD_TEST_EXPECT_TRUE(text_is("rd.sf", "SF8"));
+    DMOD_TEST_EXPECT_TRUE(text_is("rd.cr", "4/8"));
+    /* the bandwidth: 10 entries on two pages, the one that is set is marked (on the second page), a touch on a row sets it with the other numbers as they are */
+    settings_event(&g_s, "mesh.rd.bw", 0, 0);
+    DMOD_TEST_EXPECT_TRUE(number_is("page", SETTINGS_PAGE_CHOICE));
+    DMOD_TEST_EXPECT_TRUE(text_is("ch.title", "Bandwidth"));
+    DMOD_TEST_EXPECT_TRUE(text_is("ch.info", "6-10 of 10"));
+    DMOD_TEST_EXPECT_TRUE(text_is("ch1.text", "> 62.5 kHz"));
+    settings_event(&g_s, "ch.prev", 0, 0);
+    DMOD_TEST_EXPECT_TRUE(text_is("ch0.text", "7.8 kHz"));
+    DMOD_TEST_EXPECT_TRUE(text_is("ch2.text", "15.6 kHz"));
+    DMOD_TEST_EXPECT_TRUE(text_is("ch.info", "1-5 of 10"));
+    settings_event(&g_s, "ch.row", 4, 0);                                      /* 31.25 kHz */
+    DMOD_TEST_EXPECT_EQ(g_mesh.bandwidth, 31250u);
+    DMOD_TEST_EXPECT_EQ(g_mesh.frequency, 869618000u);
+    DMOD_TEST_EXPECT_EQ(g_mesh.sf, 8);
+    DMOD_TEST_EXPECT_TRUE(number_is("page", SETTINGS_PAGE_MESH_RADIO));
+    DMOD_TEST_EXPECT_TRUE(text_is("rd.bw", "31.25 kHz"));
+    DMOD_TEST_EXPECT_EQ(g_mesh.preset, 3);                                      /* the custom region */
+    /* spreading factor and coding rate; frequency; back goes list -> numbers -> LoRa */
+    settings_event(&g_s, "mesh.rd.sf", 0, 0);
+    DMOD_TEST_EXPECT_TRUE(text_is("ch0.text", "SF5"));
+    settings_event(&g_s, "ch.row", 2, 0);
+    DMOD_TEST_EXPECT_EQ(g_mesh.sf, 7);
+    settings_event(&g_s, "mesh.rd.cr", 0, 0);
+    settings_event(&g_s, "ch.row", 0, 0);
+    DMOD_TEST_EXPECT_EQ(g_mesh.cr, 5);
+    settings_event(&g_s, "mesh.rd.freq", 0, 0);
+    DMOD_TEST_EXPECT_TRUE(text_is("ch4.text", "> 869.618 MHz"));
+    settings_event(&g_s, "ch.row", 1, 0);
+    DMOD_TEST_EXPECT_EQ(g_mesh.frequency, 868100000u);
+    DMOD_TEST_EXPECT_TRUE(text_is("rd.freq", "868.100 MHz"));
+    settings_event(&g_s, "mesh.rd.sf", 0, 0);
+    settings_event(&g_s, "back", 0, 0);
+    DMOD_TEST_EXPECT_TRUE(number_is("page", SETTINGS_PAGE_MESH_RADIO));
+    settings_event(&g_s, "back", 0, 0);
+    DMOD_TEST_EXPECT_TRUE(number_is("page", SETTINGS_PAGE_MESH));
+    /* a radio that refuses says so */
+    g_mesh.result = -EINVAL;
+    settings_event(&g_s, "mesh.radio", 0, 0);
+    settings_event(&g_s, "mesh.rd.sf", 0, 0);
+    settings_event(&g_s, "ch.row", 3, 0);
+    DMOD_TEST_EXPECT_TRUE(text_is("mesh.status", "The radio refused it"));
+}
+
 DMOD_TEST_STEP(mesh_page_without_a_radio_and_with_a_radio_that_refuses)
 {
     start();
@@ -550,6 +643,8 @@ DMOD_TEST_STEP(mesh_page_without_a_radio_and_with_a_radio_that_refuses)
     g_mesh.result = -EINVAL;
     settings_event(&g_s, "open.mesh", 0, 0);
     settings_event(&g_s, "mesh.preset", 0, 0);
+    DMOD_TEST_EXPECT_EQ(g_mesh.changes, 0);                          /* the list only opens */
+    settings_event(&g_s, "ch.row", 1, 0);
     DMOD_TEST_EXPECT_EQ(g_mesh.changes, 1);
     DMOD_TEST_EXPECT_TRUE(text_is("mesh.status", "The radio refused it"));
     g_mesh.result = -EIO;
