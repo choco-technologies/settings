@@ -29,6 +29,8 @@ typedef enum
     SETTINGS_PAGE_WIFI,             /**< The switch of the radio and the networks in range */
     SETTINGS_PAGE_PASSWORD,         /**< The password of a network */
     SETTINGS_PAGE_NETWORK,          /**< A network that is connected or saved: disconnect, forget */
+    SETTINGS_PAGE_MESH,             /**< LoRa: the MeshCore mesh - the switch, the region, the power, the name */
+    SETTINGS_PAGE_MESH_NAME,        /**< The name of this node in the mesh: typed on the keyboard */
 } settings_page_t;
 
 /** @brief The radio and the vault of the saved networks, as the model needs them (the driver's contract, dmsecrets) */
@@ -47,6 +49,36 @@ typedef struct
     /** The password of a saved network; 0, or a negative errno */
     int     (*load)(void* context, const char* ssid, char* password, size_t size);
 } settings_wifi_ops_t;
+
+/** @brief What the mesh (libmeshcore) says about itself, as the model needs it */
+typedef struct
+{
+    bool        available;          /**< There is a mesh service (a radio) to ask */
+    bool        enabled;
+    bool        listening;          /**< The radio listens (not starting, not off) */
+    uint8_t     preset;             /**< The selected region */
+    uint8_t     preset_count;       /**< The regions that can be selected (the one after the last is the custom one: it is not offered) */
+    char        preset_name[24];
+    uint32_t    frequency_hz;
+    uint32_t    bandwidth_hz;
+    uint8_t     spreading_factor;
+    uint8_t     coding_rate;        /**< 5..8: 4/5 .. 4/8 */
+    int8_t      tx_power_dbm;
+    char        name[32];           /**< The name of this node in the mesh */
+    uint32_t    packets;            /**< Heard since the start */
+    uint32_t    nodes;              /**< Nodes that were heard */
+} settings_mesh_state_t;
+
+/** @brief The mesh as the model needs it: what it is now, and the three things Settings changes (libmeshcore, settings_mesh_node) */
+typedef struct
+{
+    void*   context;
+    int     (*get)(void* context, settings_mesh_state_t* state);
+    int     (*set_enabled)(void* context, bool enabled);
+    int     (*set_preset)(void* context, uint8_t preset);
+    int     (*set_power)(void* context, int8_t dbm);
+    int     (*set_name)(void* context, const char* name);
+} settings_mesh_ops_t;
 
 /** @brief Where the properties of the page are set (libdmview_prop_set_*) */
 typedef struct
@@ -87,11 +119,21 @@ typedef struct
     char            nt_state[SETTINGS_TEXT];
     int             nt_saved;
     int             nt_connected;
+    int             mesh_on;
+    char            mesh_state[SETTINGS_TEXT];      /* the line of the list of settings: "Off", "On", "No radio" */
+    char            mesh_status[SETTINGS_TEXT];
+    char            mesh_preset[SETTINGS_TEXT];
+    char            mesh_numbers[SETTINGS_TEXT];
+    char            mesh_power[SETTINGS_TEXT];
+    char            mesh_name[SETTINGS_TEXT];       /* the name of the node, on the LoRa page */
+    char            mn_text[SETTINGS_TEXT];         /* the name as typed, with the cursor */
+    char            mn_status[SETTINGS_TEXT];
 } settings_view_t;
 
 typedef struct
 {
     settings_wifi_ops_t wifi;
+    settings_mesh_ops_t mesh;
     settings_sink_t     sink;
     settings_view_t     view;           /* what is to be shown */
     settings_view_t     shown;          /* what was published */
@@ -105,14 +147,16 @@ typedef struct
     bool                save_after;     /* ... and to keep the network when it does */
     uint32_t            connect_since;
     uint32_t            status_at;
+    char                mesh_typed[32];                 /* the name that is typed */
+    settings_mesh_state_t mesh_state;       /* the last answer of the mesh (the page of the region cycles from it) */
 } settings_t;
 
 /** @brief A model on the list of settings; publishes everything once */
-void settings_init(settings_t* settings, const settings_wifi_ops_t* wifi, const settings_sink_t* sink);
+void settings_init(settings_t* settings, const settings_wifi_ops_t* wifi, const settings_mesh_ops_t* mesh, const settings_sink_t* sink);
 
 /**
  * @brief An event of the page: "back", "open.wifi", "wifi.toggle", "scan", "row" (value: the row), "pw.show", "pw.connect",
- *        "nt.disconnect", "nt.forget". Unknown ones are ignored.
+ *        "nt.disconnect", "nt.forget", "open.mesh", "mesh.toggle", "mesh.preset" (the next region), "mesh.power.up", "mesh.power.down", "mesh.name" (opens the page of the name), "mn.save". Unknown ones are ignored.
  * @return true when the event was one of these
  */
 bool settings_event(settings_t* settings, const char* name, int32_t value, uint32_t now_ms);
