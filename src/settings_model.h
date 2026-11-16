@@ -21,6 +21,8 @@
 #define SETTINGS_TEXT           80      /**< A text of the page, with the end (the longest: the password and the cursor) */
 #define SETTINGS_CONNECT_MS     20000u  /**< How long a connection may take before it is given up */
 #define SETTINGS_STATUS_MS      2000u   /**< How often the connection is looked at when nothing is going on */
+#define SETTINGS_CHOICE_ROWS    5       /**< Rows of a list to choose from that the page has */
+#define SETTINGS_CHOICE_MAX     12      /**< Entries of such a list, at most */
 
 /** @brief The pages of the application, the value of the property "page" */
 typedef enum
@@ -31,6 +33,8 @@ typedef enum
     SETTINGS_PAGE_NETWORK,          /**< A network that is connected or saved: disconnect, forget */
     SETTINGS_PAGE_MESH,             /**< LoRa: the MeshCore mesh - the switch, the region, the power, the name */
     SETTINGS_PAGE_MESH_NAME,        /**< The name of this node in the mesh: typed on the keyboard */
+    SETTINGS_PAGE_MESH_RADIO,       /**< The numbers of the radio: frequency, bandwidth, spreading factor, coding rate (each opens a list) */
+    SETTINGS_PAGE_CHOICE,           /**< A list to choose from: the region, or one of the numbers of the radio */
 } settings_page_t;
 
 /** @brief The radio and the vault of the saved networks, as the model needs them (the driver's contract, dmsecrets) */
@@ -64,6 +68,7 @@ typedef struct
     uint8_t     spreading_factor;
     uint8_t     coding_rate;        /**< 5..8: 4/5 .. 4/8 */
     int8_t      tx_power_dbm;
+    uint8_t     path_hash_size;     /**< 1..3 bytes */
     char        name[32];           /**< The name of this node in the mesh */
     uint32_t    packets;            /**< Heard since the start */
     uint32_t    nodes;              /**< Nodes that were heard */
@@ -78,6 +83,12 @@ typedef struct
     int     (*set_preset)(void* context, uint8_t preset);
     int     (*set_power)(void* context, int8_t dbm);
     int     (*set_name)(void* context, const char* name);
+    /** The numbers of the radio by hand (the region becomes the custom one) */
+    int     (*set_radio)(void* context, uint32_t frequency_hz, uint32_t bandwidth_hz, uint8_t spreading_factor, uint8_t coding_rate);
+    /** The name of a region (0 .. preset_count - 1) */
+    int     (*preset_name)(void* context, uint8_t index, char* name, size_t size);
+    /** The size of the hash of the path of what this node sends: 1, 2 or 3 bytes */
+    int     (*set_path_hash)(void* context, uint8_t bytes);
 } settings_mesh_ops_t;
 
 /** @brief Where the properties of the page are set (libdmview_prop_set_*) */
@@ -128,6 +139,15 @@ typedef struct
     char            mesh_name[SETTINGS_TEXT];       /* the name of the node, on the LoRa page */
     char            mn_text[SETTINGS_TEXT];         /* the name as typed, with the cursor */
     char            mn_status[SETTINGS_TEXT];
+    char            rd_freq[SETTINGS_TEXT];         /* the page of the numbers of the radio */
+    char            rd_bw[SETTINGS_TEXT];
+    char            rd_sf[SETTINGS_TEXT];
+    char            rd_cr[SETTINGS_TEXT];
+    char            rd_ph[SETTINGS_TEXT];
+    char            ch_title[SETTINGS_TEXT];        /* a list to choose from: its name, the rows (the chosen one marked), which of how many */
+    int             ch_on[SETTINGS_CHOICE_ROWS];
+    char            ch_text[SETTINGS_CHOICE_ROWS][SETTINGS_TEXT];
+    char            ch_info[SETTINGS_TEXT];
 } settings_view_t;
 
 typedef struct
@@ -148,6 +168,13 @@ typedef struct
     uint32_t            connect_since;
     uint32_t            status_at;
     char                mesh_typed[32];                 /* the name that is typed */
+    int                 choice_kind;                    /* what the list chooses (settings_choice_t in the model) */
+    int                 choice_count;
+    int                 choice_first;                   /* the first entry of the rows that are shown */
+    int                 choice_current;                 /* the entry that is the setting now, -1 when none */
+    int                 choice_parent;                  /* the page the list returns to */
+    uint32_t            choice_value[SETTINGS_CHOICE_MAX];
+    char                choice_label[SETTINGS_CHOICE_MAX][SETTINGS_TEXT];
     settings_mesh_state_t mesh_state;       /* the last answer of the mesh (the page of the region cycles from it) */
 } settings_t;
 
@@ -156,7 +183,7 @@ void settings_init(settings_t* settings, const settings_wifi_ops_t* wifi, const 
 
 /**
  * @brief An event of the page: "back", "open.wifi", "wifi.toggle", "scan", "row" (value: the row), "pw.show", "pw.connect",
- *        "nt.disconnect", "nt.forget", "open.mesh", "mesh.toggle", "mesh.preset" (the next region), "mesh.power.up", "mesh.power.down", "mesh.name" (opens the page of the name), "mn.save". Unknown ones are ignored.
+ *        "nt.disconnect", "nt.forget", "open.mesh", "mesh.toggle", "mesh.preset" (opens the list of regions), "mesh.radio" (the page of the numbers), "mesh.rd.freq|bw|sf|cr|ph" (open the list of one), "ch.row" (value: the row), "ch.prev", "ch.next", "mesh.power.up", "mesh.power.down", "mesh.name" (opens the page of the name), "mn.save". Unknown ones are ignored.
  * @return true when the event was one of these
  */
 bool settings_event(settings_t* settings, const char* name, int32_t value, uint32_t now_ms);

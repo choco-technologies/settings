@@ -4,7 +4,7 @@
 #include <errno.h>
 #include <string.h>
 
-/* The regions that Settings offers: the presets of libmeshcore but the custom one (a person who sets the numbers by hand does it with `mesh set`) */
+/* The regions that Settings offers: the presets of libmeshcore but the custom one (the numbers by hand make it: the page of the numbers) */
 #define OFFERED_PRESETS     LIBMESHCORE_PRESET_CUSTOM
 
 static int mesh_get(void* context, settings_mesh_state_t* state)
@@ -30,6 +30,7 @@ static int mesh_get(void* context, settings_mesh_state_t* state)
     state->spreading_factor = settings.spreading_factor;
     state->coding_rate = settings.coding_rate;
     state->tx_power_dbm = settings.tx_power_dbm;
+    state->path_hash_size = settings.path_hash_size;
     Dmod_SnPrintf(state->name, sizeof(state->name), "%s", settings.name);
     state->packets = status.packets;
     libmeshcore_contact_t* contacts = Dmod_Malloc(sizeof(*contacts) * LIBMESHCORE_MAX_CONTACTS);
@@ -81,8 +82,44 @@ static int mesh_set_name(void* context, const char* name)
     return mesh_change(false, false, -1, -100, name);
 }
 
+static int mesh_set_radio(void* context, uint32_t frequency_hz, uint32_t bandwidth_hz, uint8_t spreading_factor, uint8_t coding_rate)
+{
+    (void)context;
+    libmeshcore_settings_t settings;
+    int ret = libmeshcore_settings_get(&settings);
+    if (ret != 0)
+        return ret;
+    settings.preset = LIBMESHCORE_PRESET_CUSTOM;            /* numbers by hand are the custom region */
+    settings.frequency_hz = frequency_hz;
+    settings.bandwidth_hz = bandwidth_hz;
+    settings.spreading_factor = spreading_factor;
+    settings.coding_rate = coding_rate;
+    return libmeshcore_settings_set(&settings);
+}
+
+static int mesh_preset_name(void* context, uint8_t index, char* name, size_t size)
+{
+    (void)context;
+    libmeshcore_preset_info_t preset;
+    if (index >= OFFERED_PRESETS || libmeshcore_preset(index, &preset) != 0)
+        return -ENOENT;
+    Dmod_SnPrintf(name, size, "%s", preset.name);
+    return 0;
+}
+
+static int mesh_set_path_hash(void* context, uint8_t bytes)
+{
+    (void)context;
+    libmeshcore_settings_t settings;
+    int ret = libmeshcore_settings_get(&settings);
+    if (ret != 0)
+        return ret;
+    settings.path_hash_size = bytes;
+    return libmeshcore_settings_set(&settings);
+}
+
 settings_mesh_ops_t mesh_node_ops(void)
 {
-    settings_mesh_ops_t ops = { NULL, mesh_get, mesh_set_enabled, mesh_set_preset, mesh_set_power, mesh_set_name };
+    settings_mesh_ops_t ops = { NULL, mesh_get, mesh_set_enabled, mesh_set_preset, mesh_set_power, mesh_set_name, mesh_set_radio, mesh_preset_name, mesh_set_path_hash };
     return ops;
 }

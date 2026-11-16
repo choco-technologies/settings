@@ -118,6 +118,25 @@ static void go(settings_t* s, settings_page_t page);
 
 /* ---- The mesh (LoRa) ---- */
 
+typedef enum { CHOICE_REGION = 0, CHOICE_FREQUENCY, CHOICE_BANDWIDTH, CHOICE_SPREADING, CHOICE_CODING, CHOICE_PATH_HASH } settings_choice_t;
+
+static void choice_open(settings_t* s, int kind);
+
+static void format_frequency(char* out, size_t size, uint32_t hz)
+{
+    (void)Dmod_SnPrintf(out, size, "%u.%03u MHz", (unsigned)(hz / 1000000u), (unsigned)(hz / 1000u % 1000u));
+}
+
+static void format_bandwidth(char* out, size_t size, uint32_t hz)
+{
+    if (hz % 1000u == 0u)
+        (void)Dmod_SnPrintf(out, size, "%u kHz", (unsigned)(hz / 1000u));
+    else if (hz % 100u == 0u)
+        (void)Dmod_SnPrintf(out, size, "%u.%u kHz", (unsigned)(hz / 1000u), (unsigned)(hz % 1000u / 100u));
+    else
+        (void)Dmod_SnPrintf(out, size, "%u.%02u kHz", (unsigned)(hz / 1000u), (unsigned)(hz % 1000u / 10u));
+}
+
 static void mesh_refresh(settings_t* s)
 {
     settings_view_t* v = &s->view;
@@ -132,6 +151,11 @@ static void mesh_refresh(settings_t* s)
         copy(v->mesh_preset, sizeof(v->mesh_preset), "-");
         copy(v->mesh_numbers, sizeof(v->mesh_numbers), "");
         copy(v->mesh_power, sizeof(v->mesh_power), "-");
+        copy(v->rd_freq, sizeof(v->rd_freq), "-");
+        copy(v->rd_bw, sizeof(v->rd_bw), "-");
+        copy(v->rd_sf, sizeof(v->rd_sf), "-");
+        copy(v->rd_cr, sizeof(v->rd_cr), "-");
+        copy(v->rd_ph, sizeof(v->rd_ph), "-");
         return;
     }
     v->mesh_on = m->enabled;
@@ -147,6 +171,11 @@ static void mesh_refresh(settings_t* s)
                         (unsigned)(m->frequency_hz / 1000u % 1000u), (unsigned)(m->bandwidth_hz / 1000u), (unsigned)(m->bandwidth_hz / 100u % 10u),
                         (unsigned)m->spreading_factor, (unsigned)m->coding_rate);
     (void)Dmod_SnPrintf(v->mesh_power, sizeof(v->mesh_power), "%d dBm", (int)m->tx_power_dbm);
+    format_frequency(v->rd_freq, sizeof(v->rd_freq), m->frequency_hz);
+    format_bandwidth(v->rd_bw, sizeof(v->rd_bw), m->bandwidth_hz);
+    (void)Dmod_SnPrintf(v->rd_sf, sizeof(v->rd_sf), "SF%u", (unsigned)m->spreading_factor);
+    (void)Dmod_SnPrintf(v->rd_cr, sizeof(v->rd_cr), "4/%u", (unsigned)m->coding_rate);
+    (void)Dmod_SnPrintf(v->rd_ph, sizeof(v->rd_ph), "%u B", (unsigned)m->path_hash_size);
     copy(v->mesh_name, sizeof(v->mesh_name), m->name);
 }
 
@@ -186,8 +215,21 @@ static void mesh_event(settings_t* s, const char* name)
     }
     if (strcmp(name, "mesh.toggle") == 0)
         ret = s->mesh.set_enabled(s->mesh.context, !s->mesh_state.enabled);
-    else if (strcmp(name, "mesh.preset") == 0 && s->mesh_state.preset_count > 0)
-        ret = s->mesh.set_preset(s->mesh.context, (uint8_t)((s->mesh_state.preset + 1U) % s->mesh_state.preset_count));
+    else if (strcmp(name, "mesh.preset") == 0)
+    {
+        choice_open(s, CHOICE_REGION);
+        return;
+    }
+    else if (strcmp(name, "mesh.radio") == 0)
+    {
+        go(s, SETTINGS_PAGE_MESH_RADIO);
+        return;
+    }
+    else if (strncmp(name, "mesh.rd.", 8) == 0)
+    {
+        choice_open(s, strcmp(name + 8, "freq") == 0 ? CHOICE_FREQUENCY : strcmp(name + 8, "bw") == 0 ? CHOICE_BANDWIDTH : strcmp(name + 8, "sf") == 0 ? CHOICE_SPREADING : strcmp(name + 8, "ph") == 0 ? CHOICE_PATH_HASH : CHOICE_CODING);
+        return;
+    }
     else if (strcmp(name, "mesh.power.up") == 0)
         ret = s->mesh.set_power(s->mesh.context, (int8_t)(s->mesh_state.tx_power_dbm < 22 ? s->mesh_state.tx_power_dbm + 1 : 22));
     else if (strcmp(name, "mesh.name") == 0)
@@ -203,6 +245,145 @@ static void mesh_event(settings_t* s, const char* name)
     mesh_refresh(s);
     if (ret != 0)
         copy(s->view.mesh_status, sizeof(s->view.mesh_status), ret == -EIO ? "Applied, but not kept (no /ext?)" : "The radio refused it");
+}
+
+
+/* ---- A list to choose from: the region, or one of the numbers of the radio ---- */
+
+/* The frequencies that are offered: the ones of the regions around (a number that is not here is set with `mesh set frequency=...`) */
+static const uint32_t FREQUENCIES_HZ[] = { 433650000u, 868100000u, 868300000u, 869525000u, 869618000u, 910525000u, 915000000u, 923000000u };
+static const uint32_t BANDWIDTHS_HZ[] = { 7800u, 10400u, 15600u, 20800u, 31250u, 41700u, 62500u, 125000u, 250000u, 500000u };
+
+static void choice_add(settings_t* s, uint32_t value, const char* label)
+{
+    if (s->choice_count >= SETTINGS_CHOICE_MAX)
+        return;
+    s->choice_value[s->choice_count] = value;
+    copy(s->choice_label[s->choice_count], SETTINGS_TEXT, label);
+    s->choice_count++;
+}
+
+static void choice_show(settings_t* s)
+{
+    settings_view_t* v = &s->view;
+    for (int i = 0; i < SETTINGS_CHOICE_ROWS; i++)
+    {
+        int index = s->choice_first + i;
+        v->ch_on[i] = index < s->choice_count;
+        if (index < s->choice_count)
+            (void)Dmod_SnPrintf(v->ch_text[i], SETTINGS_TEXT, "%s%s", index == s->choice_current ? "> " : "", s->choice_label[index]);
+        else
+            v->ch_text[i][0] = '\0';
+    }
+    if (s->choice_count > SETTINGS_CHOICE_ROWS)
+    {
+        int last = s->choice_first + SETTINGS_CHOICE_ROWS < s->choice_count ? s->choice_first + SETTINGS_CHOICE_ROWS : s->choice_count;
+        (void)Dmod_SnPrintf(v->ch_info, SETTINGS_TEXT, "%d-%d of %d", s->choice_first + 1, last, s->choice_count);
+    }
+    else
+        v->ch_info[0] = '\0';
+}
+
+static void choice_open(settings_t* s, int kind)
+{
+    char label[SETTINGS_TEXT];
+    const settings_mesh_state_t* m = &s->mesh_state;
+    s->choice_kind = kind;
+    s->choice_count = 0;
+    s->choice_current = -1;
+    s->choice_parent = (int)(kind == CHOICE_REGION ? SETTINGS_PAGE_MESH : SETTINGS_PAGE_MESH_RADIO);
+    if (kind == CHOICE_REGION)
+    {
+        copy(s->view.ch_title, SETTINGS_TEXT, "Region");
+        for (uint8_t i = 0; i < m->preset_count && s->mesh.preset_name != NULL; i++)
+            if (s->mesh.preset_name(s->mesh.context, i, label, sizeof(label)) == 0)
+                choice_add(s, i, label);
+    }
+    else if (kind == CHOICE_FREQUENCY)
+    {
+        copy(s->view.ch_title, SETTINGS_TEXT, "Frequency");
+        for (unsigned i = 0; i < sizeof(FREQUENCIES_HZ) / sizeof(FREQUENCIES_HZ[0]); i++)
+        {
+            format_frequency(label, sizeof(label), FREQUENCIES_HZ[i]);
+            choice_add(s, FREQUENCIES_HZ[i], label);
+        }
+    }
+    else if (kind == CHOICE_BANDWIDTH)
+    {
+        copy(s->view.ch_title, SETTINGS_TEXT, "Bandwidth");
+        for (unsigned i = 0; i < sizeof(BANDWIDTHS_HZ) / sizeof(BANDWIDTHS_HZ[0]); i++)
+        {
+            format_bandwidth(label, sizeof(label), BANDWIDTHS_HZ[i]);
+            choice_add(s, BANDWIDTHS_HZ[i], label);
+        }
+    }
+    else if (kind == CHOICE_SPREADING)
+    {
+        copy(s->view.ch_title, SETTINGS_TEXT, "Spreading factor");
+        for (uint32_t sf = 5; sf <= 12; sf++)
+        {
+            (void)Dmod_SnPrintf(label, sizeof(label), "SF%u", (unsigned)sf);
+            choice_add(s, sf, label);
+        }
+    }
+    else if (kind == CHOICE_PATH_HASH)
+    {
+        copy(s->view.ch_title, SETTINGS_TEXT, "Path hash size");
+        for (uint32_t bytes = 1; bytes <= 3; bytes++)
+        {
+            (void)Dmod_SnPrintf(label, sizeof(label), "%u B", (unsigned)bytes);
+            choice_add(s, bytes, label);
+        }
+    }
+    else
+    {
+        copy(s->view.ch_title, SETTINGS_TEXT, "Coding rate");
+        for (uint32_t cr = 5; cr <= 8; cr++)
+        {
+            (void)Dmod_SnPrintf(label, sizeof(label), "4/%u", (unsigned)cr);
+            choice_add(s, cr, label);
+        }
+    }
+    uint32_t now = kind == CHOICE_REGION ? m->preset : kind == CHOICE_FREQUENCY ? m->frequency_hz : kind == CHOICE_BANDWIDTH ? m->bandwidth_hz :
+                   kind == CHOICE_SPREADING ? m->spreading_factor : kind == CHOICE_PATH_HASH ? m->path_hash_size : m->coding_rate;
+    for (int i = 0; i < s->choice_count; i++)
+        if (s->choice_value[i] == now)
+            s->choice_current = i;
+    s->choice_first = s->choice_current > 0 ? s->choice_current / SETTINGS_CHOICE_ROWS * SETTINGS_CHOICE_ROWS : 0;
+    choice_show(s);
+    go(s, SETTINGS_PAGE_CHOICE);
+}
+
+/* A row was touched: the entry is set (a list is a safe way: nothing changes until an entry is touched) and the page goes back */
+static void choice_pick(settings_t* s, int row)
+{
+    int index = s->choice_first + row;
+    if (row < 0 || row >= SETTINGS_CHOICE_ROWS || index >= s->choice_count)
+        return;
+    const settings_mesh_state_t* m = &s->mesh_state;
+    uint32_t value = s->choice_value[index];
+    int ret = -ENODEV;
+    if (s->choice_kind == CHOICE_REGION)
+        ret = s->mesh.set_preset != NULL ? s->mesh.set_preset(s->mesh.context, (uint8_t)value) : -ENODEV;
+    else if (s->choice_kind == CHOICE_PATH_HASH)
+        ret = s->mesh.set_path_hash != NULL ? s->mesh.set_path_hash(s->mesh.context, (uint8_t)value) : -ENODEV;
+    else if (s->mesh.set_radio != NULL)
+        ret = s->mesh.set_radio(s->mesh.context, s->choice_kind == CHOICE_FREQUENCY ? value : m->frequency_hz,
+                                s->choice_kind == CHOICE_BANDWIDTH ? value : m->bandwidth_hz,
+                                (uint8_t)(s->choice_kind == CHOICE_SPREADING ? value : m->spreading_factor),
+                                (uint8_t)(s->choice_kind == CHOICE_CODING ? value : m->coding_rate));
+    mesh_refresh(s);
+    if (ret != 0)
+        copy(s->view.mesh_status, sizeof(s->view.mesh_status), ret == -EIO ? "Applied, but not kept (no /ext?)" : "The radio refused it");
+    go(s, (settings_page_t)s->choice_parent);
+}
+
+static void choice_page(settings_t* s, int direction)
+{
+    int first = s->choice_first + direction * SETTINGS_CHOICE_ROWS;
+    if (first >= 0 && first < s->choice_count)
+        s->choice_first = first;
+    choice_show(s);
 }
 
 /* ---- The networks ---- */
@@ -416,7 +597,11 @@ static void back(settings_t* s)
             go(s, SETTINGS_PAGE_MAIN);
             break;
         case SETTINGS_PAGE_MESH_NAME:
+        case SETTINGS_PAGE_MESH_RADIO:
             go(s, SETTINGS_PAGE_MESH);
+            break;
+        case SETTINGS_PAGE_CHOICE:
+            go(s, (settings_page_t)s->choice_parent);
             break;
         default:
             break;
@@ -462,6 +647,12 @@ bool settings_event(settings_t* s, const char* name, int32_t value, uint32_t now
     }
     else if (strcmp(name, "mn.save") == 0)
         mesh_name_save(s);
+    else if (strcmp(name, "ch.row") == 0)
+        choice_pick(s, (int)value);
+    else if (strcmp(name, "ch.prev") == 0)
+        choice_page(s, -1);
+    else if (strcmp(name, "ch.next") == 0)
+        choice_page(s, 1);
     else if (strncmp(name, "mesh.", 5) == 0)
         mesh_event(s, name);
     else if (strcmp(name, "wifi.toggle") == 0)
@@ -594,7 +785,7 @@ void settings_tick(settings_t* s, uint32_t now_ms)
         s->status_at = now_ms;
         if (s->view.page == (int)SETTINGS_PAGE_MAIN || s->view.page == (int)SETTINGS_PAGE_WIFI)
             refresh(s);
-        if (s->view.page == (int)SETTINGS_PAGE_MAIN || s->view.page == (int)SETTINGS_PAGE_MESH)
+        if (s->view.page == (int)SETTINGS_PAGE_MAIN || s->view.page == (int)SETTINGS_PAGE_MESH || s->view.page == (int)SETTINGS_PAGE_MESH_RADIO)
             mesh_refresh(s);
     }
     settings_publish(s);
@@ -650,6 +841,21 @@ void settings_publish(settings_t* s)
     put_text(s, "mesh.power", v->mesh_power, o->mesh_power);
     put_int(s, "mesh.on", v->mesh_on, o->mesh_on);
     put_text(s, "mesh.name", v->mesh_name, o->mesh_name);
+    put_text(s, "rd.freq", v->rd_freq, o->rd_freq);
+    put_text(s, "rd.bw", v->rd_bw, o->rd_bw);
+    put_text(s, "rd.sf", v->rd_sf, o->rd_sf);
+    put_text(s, "rd.cr", v->rd_cr, o->rd_cr);
+    put_text(s, "rd.ph", v->rd_ph, o->rd_ph);
+    put_text(s, "ch.title", v->ch_title, o->ch_title);
+    put_text(s, "ch.info", v->ch_info, o->ch_info);
+    for (int i = 0; i < SETTINGS_CHOICE_ROWS; i++)
+    {
+        char name[16];
+        (void)Dmod_SnPrintf(name, sizeof(name), "ch%d.text", i);
+        put_text(s, name, v->ch_text[i], o->ch_text[i]);
+        (void)Dmod_SnPrintf(name, sizeof(name), "ch%d.on", i);
+        put_int(s, name, v->ch_on[i], o->ch_on[i]);
+    }
     put_text(s, "mn.text", v->mn_text, o->mn_text);
     put_text(s, "mn.status", v->mn_status, o->mn_status);
     put_text(s, "pw.ssid", v->pw_ssid, o->pw_ssid);
