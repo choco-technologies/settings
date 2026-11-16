@@ -55,8 +55,10 @@ set(DMOD_MODULE_NAME        settings)
 set(DMOD_AUTHOR_NAME        "Patryk Kubiak")
 
 # Stack size for the module (should be integer)
-# (the vault of the networks - dmsecrets with its cryptography - runs on this stack: as the stack of the wifi tool)
-set(DMOD_STACK_SIZE         6144)
+# (the vault of the networks - dmsecrets with its cryptography - runs on this stack. The wifi tool, which does the same, needs 6144 measured on the
+# ESP32-S3 with nothing under it; here the event loop, libdmview and the model are under it too: with 6144 the first "Connect" that created the
+# vault ended in a double exception on the T-Deck Pro)
+set(DMOD_STACK_SIZE         8192)
 
 # Priority for the thread of the module (should be integer)
 set(DMOD_PRIORITY           1)
